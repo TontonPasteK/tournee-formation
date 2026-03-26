@@ -1,4 +1,4 @@
-const CACHE = 'tournee-v1';
+const CACHE = 'tournee-v2';
 const ASSETS = [
   './',
   './index.html',
