@@ -656,6 +656,663 @@
     }
 
     .btn-repeat {
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0a0f1e" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Tournée Formation</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Barlow:wght@300;400;600;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0a0f1e;
+      --bg2: #111827;
+      --card: #161f35;
+      --border: #1e2d4a;
+      --accent: #00d4ff;
+      --accent2: #ff6b35;
+      --danger: #ff3b5c;
+      --success: #00e676;
+      --warn: #ffab00;
+      --text: #e8f0fe;
+      --muted: #6b7db3;
+      --rec: #ff3b5c;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: 'Barlow', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* ═══════════════════════════════════════
+       ÉCRANS
+    ═══════════════════════════════════════ */
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .screen.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    /* ═══════════════════════════════════════
+       ÉCRAN 1 — ACCUEIL
+    ═══════════════════════════════════════ */
+    #screen-home {
+      justify-content: center;
+      align-items: center;
+      padding: 24px;
+      background: radial-gradient(ellipse at 50% 0%, #0d2040 0%, var(--bg) 70%);
+    }
+
+    .home-logo {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 4px;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      opacity: 0.7;
+    }
+
+    .home-title {
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--text);
+      text-align: center;
+      line-height: 1.1;
+      margin-bottom: 40px;
+    }
+
+    .home-title span { color: var(--accent); }
+
+    .mode-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      width: 100%;
+      max-width: 380px;
+    }
+
+    .mode-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px 24px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .mode-card:active { transform: scale(0.97); }
+
+    .mode-card.primary {
+      border-color: var(--accent);
+      background: linear-gradient(135deg, #0d2a3d 0%, var(--card) 100%);
+    }
+
+    .mode-card.secondary {
+      border-color: var(--accent2);
+      background: linear-gradient(135deg, #2a1a0d 0%, var(--card) 100%);
+    }
+
+    .mode-icon {
+      font-size: 36px;
+      flex-shrink: 0;
+    }
+
+    .mode-info h3 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .mode-card.primary h3 { color: var(--accent); }
+    .mode-card.secondary h3 { color: var(--accent2); }
+
+    .mode-info p {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    /* ═══════════════════════════════════════
+       ÉCRAN 2 — ENREGISTREMENT
+    ═══════════════════════════════════════ */
+    #screen-record {
+      background: var(--bg);
+    }
+
+    .rec-header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      gap: 8px;
+    }
+
+    .rec-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+    }
+
+    .rec-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--rec);
+      animation: pulse-rec 1s infinite;
+    }
+
+    @keyframes pulse-rec {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .rec-dot.paused { animation: none; background: var(--warn); }
+
+    .rec-timer {
+      font-family: 'Space Mono', monospace;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 2px;
+    }
+
+    .rec-stops-count {
+      font-size: 13px;
+      color: var(--muted);
+      font-family: 'Space Mono', monospace;
+    }
+
+    #rec-map {
+      flex: 1;
+      min-height: 0;
+    }
+
+    .rec-bottom {
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      padding: 12px 16px 20px;
+      flex-shrink: 0;
+    }
+
+    .rec-stop-info {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+      font-size: 13px;
+      color: var(--muted);
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .rec-stop-info.active-stop {
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    .rec-buttons {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 12px;
+      font-family: 'Barlow', sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn:active { transform: scale(0.95); }
+
+    .btn-pause {
+      background: var(--warn);
+      color: #000;
+      padding: 14px 18px;
+      flex-shrink: 0;
+      border-radius: 12px;
+    }
+
+    .btn-note {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 14px 18px;
+      flex-shrink: 0;
+    }
+
+    .btn-stop {
+      background: var(--danger);
+      color: #fff;
+      padding: 14px 20px;
+      flex: 1;
+    }
+
+    /* ═══════════════════════════════════════
+       ÉCRAN 2b — SETUP ENREGISTREMENT
+    ═══════════════════════════════════════ */
+    #screen-setup {
+      justify-content: center;
+      align-items: center;
+      padding: 24px;
+      background: radial-gradient(ellipse at 50% 0%, #0d2040 0%, var(--bg) 70%);
+    }
+
+    .setup-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px 24px;
+      width: 100%;
+      max-width: 380px;
+    }
+
+    .setup-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: var(--accent);
+    }
+
+    .setup-sub {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+
+    .field-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+
+    .field-input {
+      width: 100%;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      color: var(--text);
+      font-family: 'Barlow', sans-serif;
+      font-size: 16px;
+      margin-bottom: 20px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .field-input:focus { border-color: var(--accent); }
+
+    .btn-launch {
+      width: 100%;
+      background: var(--accent);
+      color: #000;
+      padding: 18px;
+      font-size: 17px;
+      font-weight: 800;
+      border-radius: 14px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s;
+      letter-spacing: 1px;
+    }
+
+    .btn-launch:active { transform: scale(0.97); }
+
+    .btn-back {
+      width: 100%;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 14px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 12px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    /* ═══════════════════════════════════════
+       ÉCRAN 3 — FINALISATION
+    ═══════════════════════════════════════ */
+    #screen-finalize {
+      justify-content: center;
+      align-items: center;
+      padding: 24px;
+      background: radial-gradient(ellipse at 50% 100%, #0d2a1a 0%, var(--bg) 70%);
+    }
+
+    .finalize-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px 24px;
+      width: 100%;
+      max-width: 380px;
+      text-align: center;
+    }
+
+    .finalize-icon { font-size: 52px; margin-bottom: 16px; }
+
+    .finalize-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--success);
+      margin-bottom: 8px;
+    }
+
+    .finalize-stats {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin: 20px 0;
+    }
+
+    .stat-item { text-align: center; }
+
+    .stat-val {
+      font-family: 'Space Mono', monospace;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .stat-lbl {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .progress-bar-wrap {
+      background: var(--bg2);
+      border-radius: 8px;
+      height: 8px;
+      margin: 16px 0;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--success));
+      border-radius: 8px;
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+
+    .progress-label {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+
+    .btn-finalize {
+      width: 100%;
+      background: var(--success);
+      color: #000;
+      padding: 18px;
+      font-size: 17px;
+      font-weight: 800;
+      border-radius: 14px;
+      border: none;
+      cursor: pointer;
+      margin-bottom: 10px;
+      transition: all 0.15s;
+    }
+
+    .btn-finalize:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* ═══════════════════════════════════════
+       ÉCRAN 4 — GESTION TOURNÉES
+    ═══════════════════════════════════════ */
+    #screen-manage {
+      background: var(--bg);
+    }
+
+    .manage-header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .manage-header h2 {
+      font-size: 18px;
+      font-weight: 700;
+      flex: 1;
+    }
+
+    .btn-icon {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      width: 42px; height: 42px;
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+
+    .btn-icon:active { transform: scale(0.92); }
+
+    .manage-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .tournee-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .tournee-card:active { transform: scale(0.98); }
+    .tournee-card:hover { border-color: var(--accent2); }
+
+    .tc-icon { font-size: 28px; flex-shrink: 0; }
+
+    .tc-info { flex: 1; min-width: 0; }
+
+    .tc-name {
+      font-size: 16px;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tc-meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 3px;
+      font-family: 'Space Mono', monospace;
+    }
+
+    .tc-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .tc-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .tc-btn:active { transform: scale(0.9); }
+    .tc-btn.play { border-color: var(--accent2); }
+    .tc-btn.edit { border-color: var(--accent); }
+    .tc-btn.del { border-color: var(--danger); }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+
+    .empty-state .empty-icon { font-size: 52px; margin-bottom: 16px; }
+    .empty-state p { font-size: 15px; line-height: 1.5; }
+
+    /* ═══════════════════════════════════════
+       ÉCRAN 5 — NAVIGATION GUIDÉE
+    ═══════════════════════════════════════ */
+    #screen-nav {
+      background: var(--bg);
+    }
+
+    .nav-header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      flex-shrink: 0;
+    }
+
+    .nav-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .nav-tournee-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent2);
+    }
+
+    .nav-progress {
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .nav-next-stop {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .nav-next-icon { font-size: 20px; flex-shrink: 0; }
+
+    .nav-next-info { flex: 1; }
+
+    .nav-next-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .nav-next-dist {
+      font-size: 12px;
+      color: var(--muted);
+      font-family: 'Space Mono', monospace;
+    }
+
+    #nav-map { flex: 1; min-height: 0; }
+
+    .nav-bottom {
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      padding: 12px 16px 20px;
+      flex-shrink: 0;
+    }
+
+    .nav-instruction {
+      background: var(--card);
+      border-left: 3px solid var(--accent2);
+      border-radius: 0 10px 10px 0;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 12px;
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+    }
+
+    .nav-controls {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-nav-stop {
+      background: var(--danger);
+      color: #fff;
+      padding: 14px 20px;
+      flex: 1;
+      border-radius: 12px;
+      border: none;
+      font-family: 'Barlow', sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    .btn-repeat {
       background: var(--card);
       border: 1px solid var(--border);
       color: var(--text);
@@ -819,6 +1476,89 @@
       margin-bottom: 16px;
     }
 
+    /* Onglets texte / vocal */
+    .note-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .note-tab {
+      flex: 1;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg2);
+      color: var(--muted);
+      font-family: 'Barlow', sans-serif;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .note-tab.active {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+    }
+
+    /* Panel vocal */
+    .voice-note-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 0 6px;
+    }
+    .btn-voice-record {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg2);
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      padding: 18px 30px;
+      width: 100%;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: 'Barlow', sans-serif;
+    }
+    .btn-voice-record.listening {
+      background: rgba(255, 50, 50, 0.15);
+      border-color: var(--danger);
+      animation: pulse-voice 1.2s infinite;
+    }
+    @keyframes pulse-voice {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,50,50,0.4); }
+      50% { box-shadow: 0 0 0 10px rgba(255,50,50,0); }
+    }
+    .voice-icon { font-size: 32px; }
+    #voice-rec-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .btn-voice-record.listening #voice-rec-label {
+      color: var(--danger);
+    }
+    .voice-transcript {
+      width: 100%;
+      min-height: 52px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: var(--text);
+      font-size: 14px;
+      font-style: italic;
+      text-align: center;
+    }
+    .voice-hint {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+    }
+
     .modal-textarea {
       width: 100%;
       background: var(--bg2);
@@ -836,7 +1576,7 @@
 
     .modal-textarea:focus { border-color: var(--accent); }
 
-    .modal-btns { display: flex; gap: 10px; }
+    .modal-btns { display: flex; gap: 10px; margin-top: 14px; }
 
     .btn-modal-cancel {
       background: var(--bg2);
@@ -1090,7 +1830,25 @@
 <div class="modal-overlay" id="modal-note">
   <div class="modal-box">
     <div class="modal-title">📝 Note pour cet arrêt</div>
-    <textarea class="modal-textarea" id="note-textarea" placeholder="Ex: Mme Dupont, boîte à gauche, 3e résidence..."></textarea>
+    <div class="note-tabs">
+      <button class="note-tab active" id="tab-text" onclick="switchNoteTab('text')">⌨️ Texte</button>
+      <button class="note-tab" id="tab-voice" onclick="switchNoteTab('voice')">😙️ Vocal</button>
+    </div>
+    <!-- Tab texte -->
+    <div id="note-panel-text">
+      <textarea class="modal-textarea" id="note-textarea" placeholder="Ex: Mme Dupont, boîte à gauche, 3e résidence..."></textarea>
+    </div>
+    <!-- Tab vocal -->
+    <div id="note-panel-voice" style="display:none">
+      <div class="voice-note-box">
+        <button class="btn-voice-record" id="btn-voice-rec" onclick="toggleVoiceNote()">
+          <span class="voice-icon">🎙️</span>
+          <span id="voice-rec-label">Appuie pour dicter</span>
+        </button>
+        <div class="voice-transcript" id="voice-transcript">La transcription apparaîtra ici...</div>
+        <div class="voice-hint" id="voice-hint">Parle clairement — la note sera transcrite automatiquement</div>
+      </div>
+    </div>
     <div class="modal-btns">
       <button class="btn-modal-cancel" onclick="closeNoteModal()">Annuler</button>
       <button class="btn-modal-ok" onclick="saveNote()">Enregistrer</button>
