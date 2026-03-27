@@ -23,6 +23,8 @@ const STATE = {
   stops: [],               // {id, lat, lng, ts, tsEnd, audioOffset, note, name}
   currentStop: null,
   stopStartTime: null,
+  stopLat: null,           // Fix: coordonnées du stop en attente
+  stopLng: null,
   SPEED_THRESHOLD: 0.5,    // m/s — en dessous = arrêt possible
   STOP_MIN_DURATION: 8000, // 8s minimum pour valider un arrêt
   stopTimer: null,
@@ -82,7 +84,7 @@ function toast(msg, type = 'success', duration = 3000) {
   setTimeout(() => el.classList.remove('show'), duration);
 }
 
-function formatDuration(ms) {
+function formtDuration(ms) {
   const s = Math.floor(ms / 1000);
   const m = Math.floor(s / 60);
   const h = Math.floor(m / 60);
@@ -401,6 +403,8 @@ function togglePause() {
     clearTimeout(STATE.stopTimer);
     STATE.pendingStop = false;
     if (STATE.currentStop) endStop(Date.now());
+    // Mémoriser le temps écoulé au moment de la pause
+    STATE._elapsedBeforePause = Date.now() - STATE.startTime;
 
     btn.textContent = '▶️';
     btn.style.background = 'var(--success)';
@@ -411,6 +415,8 @@ function togglePause() {
     if (STATE.mediaRecorder && STATE.mediaRecorder.state === 'paused') {
       STATE.mediaRecorder.resume();
     }
+    // Recaler startTime pour que le timer ne compte pas la durée de pause
+    STATE.startTime = Date.now() - (STATE._elapsedBeforePause || 0);
     STATE.watchId = navigator.geolocation.watchPosition(
       onGpsUpdate,
       (err) => toast('GPS : ' + err.message, 'warn'),
@@ -436,6 +442,107 @@ function updateRecTimer() {
 // ── NOTES ────────────────────────────────────────────────
 
 let noteAutoTimeout = null;
+let voiceRecognition = null;
+let currentNoteTab = 'text';
+
+// ── Onglets de la modal note ──────────────────────────────
+
+function switchNoteTab(tab) {
+  currentNoteTab = tab;
+  document.getElementById('tab-text').classList.toggle('active', tab === 'text');
+  document.getElementById('tab-voice').classList.toggle('active', tab === 'voice');
+  document.getElementById('note-panel-text').style.display = tab === 'text' ? '' : 'none';
+  document.getElementById('note-panel-voice').style.display = tab === 'voice' ? '' : 'none';
+
+  if (tab === 'text') {
+    stopVoiceNote();
+    setTimeout(() => document.getElementById('note-textarea').focus(), 200);
+  }
+}
+
+// ── Note vocale via SpeechRecognition ────────────────────
+
+function toggleVoiceNote() {
+  if (!voiceRecognition || !voiceRecognition._active) {
+    startVoiceNote();
+  } else {
+    stopVoiceNote();
+  }
+}
+
+function startVoiceNote() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    toast('Reconnaissance vocale non supportée sur ce navigateur', 'danger', 4000);
+    return;
+  }
+
+  voiceRecognition = new SpeechRecognition();
+  voiceRecognition.lang = 'fr-FR';
+  voiceRecognition.continuous = true;
+  voiceRecognition.interimResults = true;
+  voiceRecognition._active = true;
+
+  const btn = document.getElementById('btn-voice-rec');
+  const label = document.getElementById('voice-rec-label');
+  const transcript = document.getElementById('voice-transcript');
+  const hint = document.getElementById('voice-hint');
+
+  btn.classList.add('listening');
+  label.textContent = '🔴 Écoute en cours...';
+  transcript.textContent = '...';
+  hint.textContent = 'Parle clairement — appuie à nouveau pour arrêter';
+
+  let finalText = '';
+
+  voiceRecognition.onresult = (e) => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) {
+        finalText += e.results[i][0].transcript + ' ';
+      } else {
+        interim += e.results[i][0].transcript;
+      }
+    }
+    transcript.textContent = (finalText + interim).trim() || '...';
+    // Synchro vers le textarea texte aussi
+    document.getElementById('note-textarea').value = (finalText + interim).trim();
+  };
+
+  voiceRecognition.onerror = (e) => {
+    if (e.error === 'not-allowed') {
+      toast('Micro refusé — vérifie les permissions', 'danger', 4000);
+    } else if (e.error !== 'aborted') {
+      toast('Erreur vocale : ' + e.error, 'warn');
+    }
+    stopVoiceNote();
+  };
+
+  voiceRecognition.onend = () => {
+    if (voiceRecognition && voiceRecognition._active) {
+      // Redémarrer automatiquement si toujours actif (fin naturelle)
+      try { voiceRecognition.start(); } catch(e) {}
+    }
+  };
+
+  voiceRecognition.start();
+}
+
+function stopVoiceNote() {
+  if (!voiceRecognition) return;
+  voiceRecognition._active = false;
+  try { voiceRecognition.stop(); } catch(e) {}
+  voiceRecognition = null;
+
+  const btn = document.getElementById('btn-voice-rec');
+  const label = document.getElementById('voice-rec-label');
+  const hint = document.getElementById('voice-hint');
+  if (btn) btn.classList.remove('listening');
+  if (label) label.textContent = 'Appuie pour dicter';
+  if (hint) hint.textContent = 'Parle clairement — la note sera transcrite automatiquement';
+}
+
+// ── Ouverture / fermeture modal note ─────────────────────
 
 function openNoteModalAuto() {
   openNoteModal();
@@ -448,17 +555,23 @@ function openNoteModalAuto() {
 function openNoteModal() {
   clearTimeout(noteAutoTimeout);
   document.getElementById('note-textarea').value = '';
+  document.getElementById('voice-transcript').textContent = 'La transcription apparaîtra ici...';
   document.getElementById('modal-note').classList.add('open');
+  // Toujours ouvrir sur l'onglet texte par défaut
+  switchNoteTab('text');
   setTimeout(() => document.getElementById('note-textarea').focus(), 300);
 }
 
 function closeNoteModal() {
   clearTimeout(noteAutoTimeout);
+  stopVoiceNote();
   document.getElementById('modal-note').classList.remove('open');
 }
 
 function saveNote() {
   clearTimeout(noteAutoTimeout);
+  stopVoiceNote();
+  // Récupérer la note : priorité au textarea (synchro avec le vocal aussi)
   const note = document.getElementById('note-textarea').value.trim();
   // Attacher la note au dernier arrêt
   if (STATE.stops.length > 0 && note) {
@@ -570,7 +683,7 @@ async function finalizeRecording() {
   document.getElementById('fin-size').textContent = `${sizeMB} MB`;
 
   progressBar.style.width = '100%';
-  progressLabel.textContent = '✅ Fichier prêt à télécharger !';
+  progressLabel.textContent = '✅ Fichier prêp à télécharger !';
 
   btnDl.disabled = false;
 
@@ -601,12 +714,17 @@ function downloadTournee() {
   a.download = `${safeName}_${STATE.finalTourneeData.date.replace(/\//g,'-')}.tournee`;
   a.click();
   URL.revokeObjectURL(url);
+  STATE._audioDownloaded = true;
   toast('💾 Tournée téléchargée !', 'success');
 }
 
 function afterFinalize() {
+  if (STATE.finalTourneeData && !STATE._audioDownloaded) {
+    if (!confirm('⚠️ Tu n\'as pas encore téléchargé le fichier de la tournée.\nSi tu continues, l\'audio sera perdu définitivement.\n\nContinuer quand même ?')) return;
+  }
   STATE.finalTourneeData = null;
   STATE.audioChunks = [];
+  STATE._audioDownloaded = false;
   refreshManageList();
   showScreen('screen-manage');
 }
@@ -884,7 +1002,9 @@ async function fetchRouteInstructions(fromLat, fromLng, toLat, toLng) {
   lastRouteFetch = now;
 
   try {
-    const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=5b3ce3597851110001cf6248a4e267dddc734b49a625e4c4e9b79b7e&start=${fromLng},${fromLat}&end=${toLng},${toLat}`;
+    // ⚠️  Clé ORS à remplacer par la vôtre (variable d'env recommandée)
+    const ORS_KEY = window.ORS_API_KEY || '5b3ce3597851110001cf6248a4e267dddc734b49a625e4c4e9b79b7e';
+    const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${ORS_KEY}&start=${fromLng},${fromLat}&end=${toLng},${toLat}`;
     const res = await fetch(url);
     if (!res.ok) return;
     const data = await res.json();
