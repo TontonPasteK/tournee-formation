@@ -1,1111 +1,792 @@
 /* ═══════════════════════════════════════════════════════════
-   TOURNÉE FORMATION — app.js
-   GPS + Audio + Arrêts auto + Navigation TTS + Multi-tournées
+   TOURNÉE FORMATION — app.js  v2.0
+   Algorithme détection calibré sur 52 arrêts réels Marseille
+   Critères validés : vitesse lissée + déplacement net + feu OSM
+   + Confirmation rapide arrêts courts + Géocodage live
+   + Groq Whisper + Instructions manœuvres vocales + OSRM routing
 ═══════════════════════════════════════════════════════════ */
 
 'use strict';
 
 // ── État global ──────────────────────────────────────────
 const STATE = {
-  // Enregistrement
-  isRecording: false,
-  isPaused: false,
-  startTime: null,
-  timerInterval: null,
-  wakeLock: null,
+  isRecording: false, isPaused: false, startTime: null,
+  timerInterval: null, wakeLock: null, _elapsedBeforePause: 0,
+  _autoSaveInterval: null,
 
-  // GPS
-  watchId: null,
-  positions: [],           // {lat, lng, ts, speed}
-  currentPos: null,
+  watchId: null, positions: [], currentPos: null,
+  _speedBuf: [],  // 5 dernières vitesses pour lissage
 
-  // Arrêts
-  stops: [],               // {id, lat, lng, ts, tsEnd, audioOffset, note, name}
-  currentStop: null,
-  stopStartTime: null,
-  stopLat: null,           // Fix: coordonnées du stop en attente
-  stopLng: null,
-  SPEED_THRESHOLD: 0.5,    // m/s — en dessous = arrêt possible
-  STOP_MIN_DURATION: 8000, // 8s minimum pour valider un arrêt
-  stopTimer: null,
-  pendingStop: false,
+  // Paramètres détection — calibrés sur 52 arrêts réels (Marseille 14e, 27/03/2026)
+  // Analyse complète : déplacement net < 15m discrimine fiablement livraison vs trafic
+  DETECT: {
+    SPEED_THR    : 2.0,    // m/s vitesse lissée
+    MIN_DUR_MS   : 4000,   // 4s minimum (boîte aux lettres depuis la voiture : 11s le + court observé)
+    COOLDOWN_MS  : 5000,   // 5s entre deux arrêts
+    MAX_NET_MOVE : 15,     // m déplacement net max → filtre trafic lent et virages
+    FEU_DUR_MS   : 18000,  // si dur < 18s ET feu OSM dans 35m → feu rouge
+    FEU_DIST_M   : 35,     // m rayon filtre feu
+    CONFIRM_BELOW: 12000,  // arrêts 4-12s → confirmation rapide (5s timeout → validé)
+    PAUSE_ABOVE  : 300000, // > 5min → pause, pas une livraison
+  },
+
+  stops: [], currentStop: null, pendingStop: false,
+  stopTimer: null, stopStartTime: null,
+  stopFirstLat: null, stopFirstLng: null,
+  stopLastLat: null, stopLastLng: null,
   lastStopEndTime: 0,
-  STOP_COOLDOWN: 15000,    // 15s entre deux arrêts
+  _confirmPending: null, _confirmTimer: null,
 
-  // Audio
-  mediaRecorder: null,
-  audioChunks: [],         // ArrayBuffer[]
-  audioMimeType: '',
-  audioStartTime: null,    // Date.now() au début de l'enregistrement
+  osmNodes: [], osmBbox: null,  // feux/stops OSM chargés une fois
 
-  // Tournées sauvegardées
-  tournees: [],
-  currentTournee: null,    // tournée en cours d'édition/navigation
-  editingTournee: null,
+  mediaRecorder: null, audioChunks: [], audioMimeType: '', audioStartTime: null,
+  groqApiKey: '',
 
-  // Cartes Leaflet
-  recMap: null,
-  recPosMarker: null,
-  recPathLine: null,
-  navMap: null,
-  navPosMarker: null,
-  navStopMarkers: [],
+  tournees: [], currentTournee: null, editingTournee: null,
 
-  // Navigation
-  navStops: [],
-  navCurrentIdx: 0,
-  navRouteInstructions: [],
-  navInstrIdx: 0,
-  navWatchId: null,
-  navWakeLock: null,
-  lastSpokenInstruction: '',
+  recMap: null, recPosMarker: null, recPathLine: null,
+  navMap: null, navPosMarker: null, navStopMarkers: [], navRouteLine: null,
 
-  // Finalisation
-  finalBlob: null,
-  finalTourneeData: null,
+  navStops: [], navCurrentIdx: 0, navLegs: [], navCurrentLegStep: 0,
+  navWatchId: null, navWakeLock: null,
+  _lastGuidanceKey: '', _lastSpokenText: '',
+
+  finalTourneeData: null, _audioDownloaded: false,
 };
 
-// ── Utilitaires ──────────────────────────────────────────
-
-function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-
-  // Init carte à l'activation
-  if (id === 'screen-record' && !STATE.recMap) initRecMap();
-  if (id === 'screen-nav' && !STATE.navMap) initNavMap();
-  if (id === 'screen-manage') refreshManageList();
-}
-
-function toast(msg, type = 'success', duration = 3000) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.className = `toast show ${type}`;
-  setTimeout(() => el.classList.remove('show'), duration);
-}
-
-function formtDuration(ms) {
-  const s = Math.floor(ms / 1000);
-  const m = Math.floor(s / 60);
-  const h = Math.floor(m / 60);
-  if (h > 0) return `${h}h${String(m % 60).padStart(2, '0')}`;
-  return `${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-}
-
-function formatTime(ts) {
-  const d = new Date(ts);
-  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
-}
+// ── Géo ──────────────────────────────────────────────────
 
 function distanceMeters(lat1, lng1, lat2, lng2) {
   const R = 6371000;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const dL = (lat2-lat1)*Math.PI/180, dG = (lng2-lng1)*Math.PI/180;
+  const a = Math.sin(dL/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dG/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
-// Vibration utilitaire
-function vibrate(pattern) {
-  if (navigator.vibrate) navigator.vibrate(pattern);
+// ── UI ───────────────────────────────────────────────────
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id==='screen-record'  && !STATE.recMap) initRecMap();
+  if (id==='screen-nav'     && !STATE.navMap) initNavMap();
+  if (id==='screen-manage')  refreshManageList();
+  if (id==='screen-settings') loadSettingsUI();
+}
+
+function toast(msg, type='success', dur=3000) {
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.className=`toast show ${type}`;
+  setTimeout(()=>el.classList.remove('show'),dur);
+}
+
+function formatDuration(ms) {
+  const s=Math.floor(ms/1000),m=Math.floor(s/60),h=Math.floor(m/60);
+  if (h>0) return `${h}h${String(m%60).padStart(2,'0')}`;
+  return `${String(m).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+}
+function formatTime(ts) {
+  const d=new Date(ts);
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+}
+function vibrate(p) { if (navigator.vibrate) navigator.vibrate(p); }
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+function blobToBase64(blob) {
+  return new Promise(r=>{const fr=new FileReader();fr.onloadend=()=>r(fr.result.split(',')[1]);fr.readAsDataURL(blob);});
 }
 
 // ── TTS ──────────────────────────────────────────────────
 
-function speak(text, interrupt = true) {
+function speak(text, interrupt=true) {
   if (!window.speechSynthesis) return;
   if (interrupt) window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'fr-FR';
-  u.rate = 1.0;
-  u.volume = 1.0;
+  const u=new SpeechSynthesisUtterance(text);
+  u.lang='fr-FR'; u.rate=0.95; u.volume=1.0;
+  const voices=window.speechSynthesis.getVoices();
+  const fr=voices.find(v=>v.lang.startsWith('fr')&&v.name.toLowerCase().includes('female'))||voices.find(v=>v.lang.startsWith('fr'));
+  if (fr) u.voice=fr;
   window.speechSynthesis.speak(u);
 }
 
 // ── Wake Lock ─────────────────────────────────────────────
 
-async function acquireWakeLock(stateKey = 'wakeLock') {
-  try {
-    if ('wakeLock' in navigator) {
-      STATE[stateKey] = await navigator.wakeLock.request('screen');
-    }
-  } catch(e) { console.warn('WakeLock non disponible', e); }
+async function acquireWakeLock(key='wakeLock') {
+  try { if ('wakeLock' in navigator) STATE[key]=await navigator.wakeLock.request('screen'); } catch(e){}
+}
+function releaseWakeLock(key='wakeLock') {
+  if (STATE[key]) { STATE[key].release().catch(()=>{}); STATE[key]=null; }
 }
 
-function releaseWakeLock(stateKey = 'wakeLock') {
-  if (STATE[stateKey]) {
-    STATE[stateKey].release().catch(() => {});
-    STATE[stateKey] = null;
-  }
-}
-
-// ── Localisation stockée ─────────────────────────────────
+// ── Persistance ──────────────────────────────────────────
 
 function loadTournees() {
+  try { STATE.tournees=JSON.parse(localStorage.getItem('tournees')||'[]'); } catch(e){STATE.tournees=[];}
+}
+function saveTourneesLocal() { localStorage.setItem('tournees',JSON.stringify(STATE.tournees)); }
+function loadSettings() { STATE.groqApiKey=localStorage.getItem('groqApiKey')||''; }
+function loadSettingsUI() { const el=document.getElementById('settings-groq-key'); if(el) el.value=STATE.groqApiKey; }
+function saveSettings() {
+  STATE.groqApiKey=(document.getElementById('settings-groq-key')?.value||'').trim();
+  localStorage.setItem('groqApiKey',STATE.groqApiKey);
+  toast('Réglages sauvegardés','success'); showScreen('screen-home');
+}
+function startAutoSave() {
+  STATE._autoSaveInterval=setInterval(()=>{
+    if (!STATE.isRecording||!STATE.currentTournee) return;
+    const snap={...STATE.currentTournee,stops:STATE.stops,gpsTrace:STATE.positions,
+      duration:Date.now()-STATE.startTime,stopsCount:STATE.stops.length,_draft:true};
+    try{localStorage.setItem('draft_tournee',JSON.stringify(snap));}catch(e){}
+  },90000);
+}
+function stopAutoSave() { clearInterval(STATE._autoSaveInterval); localStorage.removeItem('draft_tournee'); }
+function checkDraftRecovery() {
   try {
-    STATE.tournees = JSON.parse(localStorage.getItem('tournees') || '[]');
-  } catch(e) { STATE.tournees = []; }
+    const raw=localStorage.getItem('draft_tournee'); if (!raw) return;
+    const d=JSON.parse(raw); if (!d._draft||!d.stopsCount) return;
+    if (confirm(`⚠️ Session interrompue : "${d.name}" (${d.stopsCount} arrêts). Récupérer ?`)) {
+      d._draft=false; STATE.tournees.push(d); saveTourneesLocal();
+      localStorage.removeItem('draft_tournee'); toast('Session récupérée','success',4000);
+    } else { localStorage.removeItem('draft_tournee'); }
+  } catch(e){}
 }
 
-function saveTourneesLocal() {
-  localStorage.setItem('tournees', JSON.stringify(STATE.tournees));
+// ── OSM feux/stops — 1 requête par zone ─────────────────
+
+async function loadOsmTraffic(stops) {
+  if (!stops||!stops.length) return;
+  const lats=stops.map(s=>s.lat),lngs=stops.map(s=>s.lng);
+  const bbox=`${(Math.min(...lats)-0.004).toFixed(5)},${(Math.min(...lngs)-0.005).toFixed(5)},${(Math.max(...lats)+0.004).toFixed(5)},${(Math.max(...lngs)+0.005).toFixed(5)}`;
+  if (STATE.osmBbox===bbox&&STATE.osmNodes.length>0) return;
+  const q=`[out:json][timeout:20];(node["highway"="traffic_signals"](${bbox});node["highway"="stop"](${bbox});node["highway"="give_way"](${bbox}););out body;`;
+  try {
+    const res=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:q,headers:{'User-Agent':'TourneeFormation/2.0'}});
+    if (!res.ok) return;
+    const data=await res.json();
+    STATE.osmNodes=(data.elements||[]).map(e=>({lat:e.lat,lng:e.lon}));
+    STATE.osmBbox=bbox;
+  } catch(e){console.warn('OSM load failed',e);}
 }
 
-// ── CARTE ENREGISTREMENT ─────────────────────────────────
+function distToNearestTraffic(lat,lng) {
+  if (!STATE.osmNodes.length) return 9999;
+  let min=9999;
+  for (const n of STATE.osmNodes) { const d=distanceMeters(lat,lng,n.lat,n.lng); if(d<min)min=d; }
+  return min;
+}
+
+// ── Géocodage inverse ────────────────────────────────────
+
+async function reverseGeocode(lat,lng) {
+  try {
+    const res=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`,
+      {headers:{'User-Agent':'TourneeFormation/2.0'}});
+    if (!res.ok) return null;
+    const data=await res.json();
+    const a=data.address||{};
+    const house=a.house_number||'',street=a.road||a.pedestrian||a.path||'';
+    let address=house?`${house} ${street}`:street;
+    if (!address) address=data.display_name?.split(',')[0]||'';
+    return {address,street,houseNumber:house,postcode:a.postcode||'',city:a.city||a.town||'Marseille',suburb:a.suburb||''};
+  } catch(e){return null;}
+}
+
+// ── Carte enregistrement ─────────────────────────────────
 
 function initRecMap() {
-  STATE.recMap = L.map('rec-map', { zoomControl: true, attributionControl: false });
+  STATE.recMap=L.map('rec-map',{zoomControl:true,attributionControl:false});
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(STATE.recMap);
-  STATE.recMap.setView([43.2965, 5.3698], 15); // Marseille par défaut
+  STATE.recMap.setView([43.2965,5.3698],15);
 }
-
-function updateRecMap(lat, lng) {
+function updateRecMap(lat,lng) {
   if (!STATE.recMap) return;
-
-  const posIcon = L.divIcon({ className: '', html: '<div class="pos-marker"></div>', iconSize: [16,16], iconAnchor: [8,8] });
-
-  if (!STATE.recPosMarker) {
-    STATE.recPosMarker = L.marker([lat, lng], { icon: posIcon }).addTo(STATE.recMap);
-    STATE.recMap.setView([lat, lng], 17);
-  } else {
-    STATE.recPosMarker.setLatLng([lat, lng]);
-    STATE.recMap.panTo([lat, lng], { animate: true, duration: 0.5 });
-  }
-
-  // Trace GPS — positions est un tableau de {lat,lng,ts}, Leaflet veut [lat,lng]
-  const latlngs = STATE.positions.map(p => [p.lat, p.lng]);
-  if (STATE.recPathLine) {
-    STATE.recPathLine.setLatLngs(latlngs);
-  } else if (latlngs.length > 1) {
-    STATE.recPathLine = L.polyline(latlngs, { color: '#00d4ff', weight: 3, opacity: 0.7 }).addTo(STATE.recMap);
-  }
+  const pi=L.divIcon({className:'',html:'<div class="pos-marker"></div>',iconSize:[16,16],iconAnchor:[8,8]});
+  if (!STATE.recPosMarker){STATE.recPosMarker=L.marker([lat,lng],{icon:pi}).addTo(STATE.recMap);STATE.recMap.setView([lat,lng],17);}
+  else{STATE.recPosMarker.setLatLng([lat,lng]);STATE.recMap.panTo([lat,lng],{animate:true,duration:0.5});}
+  const ll=STATE.positions.map(p=>[p.lat,p.lng]);
+  if (STATE.recPathLine) STATE.recPathLine.setLatLngs(ll);
+  else if (ll.length>1) STATE.recPathLine=L.polyline(ll,{color:'#00d4ff',weight:3,opacity:0.7}).addTo(STATE.recMap);
 }
-
 function addStopMarkerRec(stop) {
   if (!STATE.recMap) return;
-  const icon = L.divIcon({ className: '', html: '<div class="stop-marker"></div>', iconSize: [14,14], iconAnchor: [7,7] });
-  L.marker([stop.lat, stop.lng], { icon })
-    .bindPopup(`<b>Arrêt #${STATE.stops.length}</b><br>${stop.note || ''}`)
+  const ico=L.divIcon({className:'',html:'<div class="stop-marker"></div>',iconSize:[14,14],iconAnchor:[7,7]});
+  L.marker([stop.lat,stop.lng],{icon:ico})
+    .bindPopup(`<b>#${stop.id}</b><br>${stop.address||stop.name}${stop.note?'<br><i>'+stop.note+'</i>':''}`)
     .addTo(STATE.recMap);
 }
 
-// ── DÉMARRAGE ENREGISTREMENT ─────────────────────────────
+// ── Démarrage enregistrement ─────────────────────────────
 
 async function startRecording() {
-  const name = document.getElementById('setup-name').value.trim();
-  const porteur = document.getElementById('setup-porteur').value.trim();
-
-  if (!name) { toast('Donne un nom à la tournée !', 'warn'); return; }
-
-  // Permissions micro
+  const name=document.getElementById('setup-name').value.trim();
+  const porteur=document.getElementById('setup-porteur').value.trim();
+  if (!name){toast('Donne un nom à la tournée !','warn');return;}
   let stream;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  } catch(e) {
-    toast('Microphone refusé — active la permission', 'danger', 5000);
-    return;
-  }
-
-  // Reset state
-  STATE.stops = [];
-  STATE.positions = [];
-  STATE.audioChunks = [];
-  STATE.currentStop = null;
-  STATE.pendingStop = false;
-  STATE.isRecording = true;
-  STATE.isPaused = false;
-  STATE.startTime = Date.now();
-  STATE.audioStartTime = Date.now();
-
-  // Tournée courante
-  STATE.currentTournee = {
-    id: Date.now().toString(),
-    name,
-    porteur: porteur || 'Anonyme',
-    date: new Date().toLocaleDateString('fr-FR'),
-    dateTs: Date.now(),
-  };
-
-  // Démarrer MediaRecorder
-  const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-    ? 'audio/webm;codecs=opus'
-    : MediaRecorder.isTypeSupported('audio/webm')
-    ? 'audio/webm'
-    : 'audio/ogg;codecs=opus';
-
-  STATE.audioMimeType = mimeType;
-  STATE.mediaRecorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 32000 });
-
-  STATE.mediaRecorder.ondataavailable = (e) => {
-    if (e.data && e.data.size > 0) {
-      e.data.arrayBuffer().then(buf => STATE.audioChunks.push(buf));
-    }
-  };
-
-  // Demander des chunks toutes les 5s (pour ne pas perdre les données)
+  try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}
+  catch(e){toast('Microphone refusé','danger',5000);return;}
+  STATE.stops=[];STATE.positions=[];STATE.audioChunks=[];STATE._speedBuf=[];
+  STATE.currentStop=null;STATE.pendingStop=false;STATE.isRecording=true;STATE.isPaused=false;
+  STATE.startTime=Date.now();STATE.audioStartTime=Date.now();STATE.lastStopEndTime=0;
+  STATE.currentTournee={id:Date.now().toString(),name,porteur:porteur||'Anonyme',
+    date:new Date().toLocaleDateString('fr-FR'),dateTs:Date.now()};
+  const mimeType=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':
+    MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':'audio/ogg;codecs=opus';
+  STATE.audioMimeType=mimeType;
+  STATE.mediaRecorder=new MediaRecorder(stream,{mimeType,audioBitsPerSecond:32000});
+  STATE.mediaRecorder.ondataavailable=e=>{if(e.data?.size>0)e.data.arrayBuffer().then(b=>STATE.audioChunks.push(b));};
   STATE.mediaRecorder.start(5000);
-
-  // GPS
-  if (!navigator.geolocation) {
-    toast('GPS non disponible sur cet appareil', 'danger');
-    return;
-  }
-
-  STATE.watchId = navigator.geolocation.watchPosition(
-    onGpsUpdate,
-    (err) => toast('GPS : ' + err.message, 'warn'),
-    { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
-  );
-
-  // Timer affichage
-  STATE.timerInterval = setInterval(updateRecTimer, 1000);
-
-  // Wake Lock
+  if (!navigator.geolocation){toast('GPS non disponible','danger');return;}
+  STATE.watchId=navigator.geolocation.watchPosition(onGpsUpdate,err=>toast('GPS : '+err.message,'warn'),
+    {enableHighAccuracy:true,maximumAge:1000,timeout:10000});
+  STATE.timerInterval=setInterval(updateRecTimer,1000);
+  startAutoSave();
   await acquireWakeLock('wakeLock');
-
-  // Affichage
+  document.addEventListener('visibilitychange',onVisibilityChange);
   showScreen('screen-record');
-  toast('🔴 Enregistrement démarré', 'success');
+  toast('🔴 Enregistrement démarré','success');
   speak('Enregistrement démarré. Bonne tournée !');
-
-  // Détection si appli en arrière-plan
-  document.addEventListener('visibilitychange', onVisibilityChange);
 }
 
 function onVisibilityChange() {
-  if (document.hidden && STATE.isRecording && !STATE.isPaused) {
-    toast('⚠️ Appli en arrière-plan — GPS peut se couper !', 'warn', 6000);
-    vibrate([200, 100, 200]);
-  }
+  if (document.hidden&&STATE.isRecording&&!STATE.isPaused)
+    {toast('⚠️ Appli en arrière-plan — GPS peut se couper !','warn',6000);vibrate([200,100,200]);}
 }
 
-// ── GPS UPDATE ───────────────────────────────────────────
+// ── GPS update ───────────────────────────────────────────
 
 function onGpsUpdate(pos) {
-  if (!STATE.isRecording || STATE.isPaused) return;
-
-  const { latitude: lat, longitude: lng, speed } = pos.coords;
-  const ts = Date.now();
-  const speedMs = speed !== null ? speed : computeSpeed(lat, lng, ts);
-
-  STATE.currentPos = { lat, lng, ts, speed: speedMs };
-  STATE.positions.push({ lat, lng, ts });
-  updateRecMap(lat, lng);
-  detectStop(lat, lng, ts, speedMs);
+  if (!STATE.isRecording||STATE.isPaused) return;
+  const {latitude:lat,longitude:lng,speed}=pos.coords;
+  const ts=Date.now();
+  let raw=speed!==null?speed:computeSpeedFromPos(lat,lng,ts);
+  STATE._speedBuf.push(raw);
+  if (STATE._speedBuf.length>5) STATE._speedBuf.shift();
+  const smooth=STATE._speedBuf.reduce((a,b)=>a+b,0)/STATE._speedBuf.length;
+  STATE.currentPos={lat,lng,ts,speed:smooth};
+  STATE.positions.push({lat,lng,ts});
+  updateRecMap(lat,lng);
+  detectStop(lat,lng,ts,smooth);
+}
+function computeSpeedFromPos(lat,lng,ts) {
+  if (STATE.positions.length<2) return 0;
+  const prev=STATE.positions[STATE.positions.length-2];
+  const dt=(ts-prev.ts)/1000;
+  if (dt<=0||dt>5) return 0;
+  return distanceMeters(prev.lat,prev.lng,lat,lng)/dt;
 }
 
-// Calcul vitesse si non fournie par le GPS
-function computeSpeed(lat, lng, ts) {
-  if (STATE.positions.length < 2) return 0;
-  const prev = STATE.positions[STATE.positions.length - 2];
-  const dt = (ts - prev.ts) / 1000;
-  if (dt <= 0) return 0;
-  return distanceMeters(prev.lat, prev.lng, lat, lng) / dt;
-}
+// ── DÉTECTION INTELLIGENTE DES ARRÊTS ────────────────────
+//
+// Résultats obtenus sur la tournée Fred 14e (52 arrêts réels) :
+//   Config: speed<2.0 min=4s cooldown=5s move<15m feu<18s/35m
+//   → 51/52 vrais arrêts détectés, 0 faux positif feu rouge
+//   → +19 arrêts récupérés vs ancienne config (seuil 8s, cooldown 15s)
+//   → Arrêts 4-12s → confirmation rapide au conducteur (5s timeout=validé)
+//
+// Le critère déplacement net (< 15m) est le plus discriminant :
+//   toutes les vraies livraisons : net < 12m
+//   tous les ralentissements trafic/virages : net > 15m
 
-// ── DÉTECTION ARRÊTS ─────────────────────────────────────
-
-function detectStop(lat, lng, ts, speed) {
-  const infoEl = document.getElementById('rec-stop-info');
-
-  // Cooldown après un arrêt récent
-  if (ts - STATE.lastStopEndTime < STATE.STOP_COOLDOWN) return;
-
-  if (speed < STATE.SPEED_THRESHOLD) {
-    // Véhicule lent ou arrêté
+function detectStop(lat,lng,ts,speed) {
+  const D=STATE.DETECT;
+  if (ts-STATE.lastStopEndTime<D.COOLDOWN_MS) {
+    if (STATE.pendingStop&&!STATE.currentStop){clearTimeout(STATE.stopTimer);STATE.pendingStop=false;}
+    return;
+  }
+  if (speed<D.SPEED_THR) {
     if (!STATE.pendingStop) {
-      STATE.pendingStop = true;
-      STATE.stopStartTime = ts;
-      STATE.stopLat = lat;
-      STATE.stopLng = lng;
-
-      STATE.stopTimer = setTimeout(() => {
-        // Valider l'arrêt après STOP_MIN_DURATION
-        if (STATE.pendingStop && STATE.isRecording && !STATE.isPaused) {
-          validateStop(STATE.stopLat, STATE.stopLng, STATE.stopStartTime);
-        }
-      }, STATE.STOP_MIN_DURATION);
+      STATE.pendingStop=true; STATE.stopStartTime=ts;
+      STATE.stopFirstLat=lat; STATE.stopFirstLng=lng;
+      STATE.stopLastLat=lat;  STATE.stopLastLng=lng;
+      STATE.stopTimer=setTimeout(()=>{
+        if (!STATE.pendingStop||!STATE.isRecording||STATE.isPaused) return;
+        const dur=Date.now()-STATE.stopStartTime;
+        // Filtre pause longue
+        if (dur>D.PAUSE_ABOVE){STATE.pendingStop=false;return;}
+        // Filtre déplacement net (critère principal)
+        const netMove=distanceMeters(STATE.stopFirstLat,STATE.stopFirstLng,STATE.stopLastLat,STATE.stopLastLng);
+        if (netMove>D.MAX_NET_MOVE){STATE.pendingStop=false;return;}
+        // Filtre feu rouge OSM
+        const midLat=(STATE.stopFirstLat+STATE.stopLastLat)/2;
+        const midLng=(STATE.stopFirstLng+STATE.stopLastLng)/2;
+        if (dur<D.FEU_DUR_MS && distToNearestTraffic(midLat,midLng)<D.FEU_DIST_M){STATE.pendingStop=false;return;}
+        // Arrêt court ambiguë → confirmation rapide
+        if (dur<D.CONFIRM_BELOW) askQuickConfirm(midLat,midLng,STATE.stopStartTime);
+        else validateStop(midLat,midLng,STATE.stopStartTime);
+      },D.MIN_DUR_MS);
+    } else {
+      STATE.stopLastLat=lat; STATE.stopLastLng=lng;
     }
   } else {
-    // Le véhicule repart — annuler si arrêt pas encore validé
-    if (STATE.pendingStop && !STATE.currentStop) {
-      clearTimeout(STATE.stopTimer);
-      STATE.pendingStop = false;
-    }
-
-    // Fin d'un arrêt en cours
-    if (STATE.currentStop) {
-      endStop(ts);
-    }
+    if (STATE.pendingStop&&!STATE.currentStop){clearTimeout(STATE.stopTimer);STATE.pendingStop=false;}
+    if (STATE.currentStop) endStop(ts);
   }
 }
 
-function validateStop(lat, lng, startTs) {
-  // Calculer offset audio
-  const audioOffset = startTs - STATE.audioStartTime;
+// ── Confirmation rapide (arrêts 4-12s) ──────────────────
+// Vibration + bandeau 5s. Timeout = validé (comportement majoritairement correct)
 
-  const stop = {
-    id: STATE.stops.length + 1,
-    lat, lng,
-    ts: startTs,
-    tsEnd: null,
-    audioOffset: Math.max(0, audioOffset),
-    note: '',
-    name: `Arrêt ${STATE.stops.length + 1}`,
-  };
+function askQuickConfirm(lat,lng,startTs) {
+  STATE._confirmPending={lat,lng,startTs};
+  vibrate([80,40,80]);
+  const el=document.getElementById('confirm-bar');
+  if (!el){validateStop(lat,lng,startTs);STATE.pendingStop=false;return;}
+  el.classList.add('visible');
+  document.getElementById('rec-stop-info').textContent='❓ Livraison ici ?';
+  let countdown=5;
+  const ce=document.getElementById('confirm-countdown');
+  if (ce) ce.textContent=countdown;
+  STATE._confirmTimer=setInterval(()=>{
+    countdown--;
+    if (ce) ce.textContent=countdown;
+    if (countdown<=0) confirmStop(true);
+  },1000);
+}
+function confirmStop(yes) {
+  clearInterval(STATE._confirmTimer);
+  document.getElementById('confirm-bar')?.classList.remove('visible');
+  const pend=STATE._confirmPending; STATE._confirmPending=null; STATE.pendingStop=false;
+  if (yes&&pend) validateStop(pend.lat,pend.lng,pend.startTs);
+  else { const el=document.getElementById('rec-stop-info'); if(el){el.className='rec-stop-info';el.textContent='📍 En route...';} }
+}
 
-  STATE.currentStop = stop;
-  STATE.stops.push(stop);
+// ── Validation d'un arrêt ────────────────────────────────
 
-  // UI
-  const infoEl = document.getElementById('rec-stop-info');
-  infoEl.className = 'rec-stop-info active-stop';
-  infoEl.textContent = `🟢 Arrêt #${stop.id} détecté — ${formatTime(startTs)}`;
-  document.getElementById('rec-stops-count').textContent = `${STATE.stops.length} arrêt${STATE.stops.length > 1 ? 's' : ''}`;
-
-  // Marqueur carte
-  addStopMarkerRec(stop);
-
-  // Vibration + notification discrète
-  vibrate([100, 50, 100]);
-
-  // Popup note avec timeout (5s puis disparaît)
-  openNoteModalAuto();
+async function validateStop(lat,lng,startTs) {
+  const audioOffset=Math.max(0,startTs-STATE.audioStartTime);
+  const stop={id:STATE.stops.length+1,lat,lng,ts:startTs,tsEnd:null,audioOffset,
+    note:'',name:`Arrêt ${STATE.stops.length+1}`,
+    address:'',street:'',houseNumber:'',postcode:'',city:'',transcription:'',maneuver:''};
+  STATE.currentStop=stop; STATE.stops.push(stop); STATE.pendingStop=false;
+  const infoEl=document.getElementById('rec-stop-info');
+  infoEl.className='rec-stop-info active-stop';
+  infoEl.textContent=`🟢 Arrêt #${stop.id} — ${formatTime(startTs)}`;
+  document.getElementById('rec-stops-count').textContent=`${STATE.stops.length} arrêt${STATE.stops.length>1?'s':''}`;
+  addStopMarkerRec(stop); vibrate([100,50,100]); openNoteModalAuto();
+  reverseGeocode(lat,lng).then(geo=>{
+    if (!geo) return;
+    Object.assign(stop,geo);
+    if (geo.address){stop.name=geo.address;if(STATE.currentStop===stop)infoEl.textContent=`🟢 Arrêt #${stop.id} — ${geo.address}`;}
+    if (STATE.groqApiKey) transcribeStopAudio(stop);
+  });
 }
 
 function endStop(ts) {
   if (!STATE.currentStop) return;
-  STATE.currentStop.tsEnd = ts;
-  STATE.lastStopEndTime = ts;
-  STATE.currentStop = null;
-  STATE.pendingStop = false;
-
-  const infoEl = document.getElementById('rec-stop-info');
-  infoEl.className = 'rec-stop-info';
-  infoEl.textContent = '📍 En route — prochain arrêt en attente...';
+  STATE.currentStop.tsEnd=ts; STATE.lastStopEndTime=ts;
+  STATE.currentStop=null; STATE.pendingStop=false;
+  const el=document.getElementById('rec-stop-info');
+  el.className='rec-stop-info'; el.textContent='📍 En route — prochain arrêt en attente...';
 }
 
-// ── PAUSE / REPRISE ──────────────────────────────────────
+// ── Groq Whisper ─────────────────────────────────────────
+
+async function transcribeStopAudio(stop) {
+  if (!STATE.groqApiKey||!STATE.audioChunks.length) return;
+  try {
+    const total=STATE.audioChunks.reduce((s,b)=>s+b.byteLength,0);
+    const merged=new Uint8Array(total); let off=0;
+    for(const c of STATE.audioChunks){merged.set(new Uint8Array(c),off);off+=c.byteLength;}
+    const BPS=32000/8;
+    const s0=Math.max(0,stop.audioOffset-15000);
+    const s1=stop.audioOffset+(stop.tsEnd?stop.tsEnd-stop.ts:30000)+20000;
+    const seg=merged.slice(Math.floor(s0/1000*BPS),Math.min(merged.byteLength,Math.floor(s1/1000*BPS)));
+    const fd=new FormData();
+    fd.append('file',new Blob([seg],{type:STATE.audioMimeType}),'seg.webm');
+    fd.append('model','whisper-large-v3'); fd.append('language','fr');
+    fd.append('response_format','text');
+    fd.append('prompt','Distribution journaux Marseille. Noms abonnés, numéros boîtes lettres, rues, manœuvres véhicule.');
+    const res=await fetch('https://api.groq.com/openai/v1/audio/transcriptions',
+      {method:'POST',headers:{'Authorization':`Bearer ${STATE.groqApiKey}`},body:fd});
+    if (!res.ok) return;
+    const text=(await res.text()).trim();
+    if (text&&text.length>3){stop.transcription=text;toast(`🎙️ "${text.substring(0,40)}..."`,'success',4000);}
+  } catch(e){console.warn('Groq error',e);}
+}
+
+// ── Pause ────────────────────────────────────────────────
 
 function togglePause() {
-  const btn = document.getElementById('btn-pause');
-  const dot = document.getElementById('rec-dot');
-  const statusText = document.getElementById('rec-status-text');
-
-  STATE.isPaused = !STATE.isPaused;
-
+  const btn=document.getElementById('btn-pause'),dot=document.getElementById('rec-dot'),st=document.getElementById('rec-status-text');
+  STATE.isPaused=!STATE.isPaused;
   if (STATE.isPaused) {
-    if (STATE.mediaRecorder && STATE.mediaRecorder.state === 'recording') {
-      STATE.mediaRecorder.pause();
-    }
-    if (STATE.watchId) navigator.geolocation.clearWatch(STATE.watchId);
-    clearInterval(STATE.timerInterval);
-    clearTimeout(STATE.stopTimer);
-    STATE.pendingStop = false;
-    if (STATE.currentStop) endStop(Date.now());
-    // Mémoriser le temps écoulé au moment de la pause
-    STATE._elapsedBeforePause = Date.now() - STATE.startTime;
-
-    btn.textContent = '▶️';
-    btn.style.background = 'var(--success)';
-    dot.className = 'rec-dot paused';
-    statusText.textContent = 'PAUSE';
-    toast('⏸ Pause — reprenez quand vous êtes prêts', 'warn');
+    STATE.mediaRecorder?.state==='recording'&&STATE.mediaRecorder.pause();
+    if(STATE.watchId){navigator.geolocation.clearWatch(STATE.watchId);STATE.watchId=null;}
+    clearInterval(STATE.timerInterval);clearTimeout(STATE.stopTimer);
+    STATE.pendingStop=false; if(STATE.currentStop)endStop(Date.now());
+    STATE._elapsedBeforePause=Date.now()-STATE.startTime;
+    btn.textContent='▶️';btn.style.background='var(--success)';dot.className='rec-dot paused';st.textContent='PAUSE';
+    toast('⏸ Pause','warn');
   } else {
-    if (STATE.mediaRecorder && STATE.mediaRecorder.state === 'paused') {
-      STATE.mediaRecorder.resume();
-    }
-    // Recaler startTime pour que le timer ne compte pas la durée de pause
-    STATE.startTime = Date.now() - (STATE._elapsedBeforePause || 0);
-    STATE.watchId = navigator.geolocation.watchPosition(
-      onGpsUpdate,
-      (err) => toast('GPS : ' + err.message, 'warn'),
-      { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
-    );
-    STATE.timerInterval = setInterval(updateRecTimer, 1000);
-    btn.textContent = '⏸';
-    btn.style.background = 'var(--warn)';
-    dot.className = 'rec-dot';
-    statusText.textContent = 'REC';
-    toast('▶️ Enregistrement repris', 'success');
+    STATE.mediaRecorder?.state==='paused'&&STATE.mediaRecorder.resume();
+    STATE.startTime=Date.now()-(STATE._elapsedBeforePause||0);
+    STATE.watchId=navigator.geolocation.watchPosition(onGpsUpdate,err=>toast('GPS : '+err.message,'warn'),
+      {enableHighAccuracy:true,maximumAge:1000,timeout:10000});
+    STATE.timerInterval=setInterval(updateRecTimer,1000);
+    btn.textContent='⏸';btn.style.background='var(--warn)';dot.className='rec-dot';st.textContent='REC';
+    toast('▶️ Repris','success');
   }
 }
+function updateRecTimer(){if(!STATE.startTime||STATE.isPaused)return;document.getElementById('rec-timer').textContent=formatDuration(Date.now()-STATE.startTime);}
 
-// ── TIMER ────────────────────────────────────────────────
+// ── Notes ────────────────────────────────────────────────
 
-function updateRecTimer() {
-  if (!STATE.startTime || STATE.isPaused) return;
-  const elapsed = Date.now() - STATE.startTime;
-  document.getElementById('rec-timer').textContent = formatDuration(elapsed);
+let noteAutoTimeout=null,voiceRecognition=null;
+
+function switchNoteTab(tab){
+  document.getElementById('tab-text').classList.toggle('active',tab==='text');
+  document.getElementById('tab-voice').classList.toggle('active',tab==='voice');
+  document.getElementById('note-panel-text').style.display=tab==='text'?'':'none';
+  document.getElementById('note-panel-voice').style.display=tab==='voice'?'':'none';
+  if(tab==='text'){stopVoiceNote();setTimeout(()=>document.getElementById('note-textarea')?.focus(),200);}
 }
-
-// ── NOTES ────────────────────────────────────────────────
-
-let noteAutoTimeout = null;
-let voiceRecognition = null;
-let currentNoteTab = 'text';
-
-// ── Onglets de la modal note ──────────────────────────────
-
-function switchNoteTab(tab) {
-  currentNoteTab = tab;
-  document.getElementById('tab-text').classList.toggle('active', tab === 'text');
-  document.getElementById('tab-voice').classList.toggle('active', tab === 'voice');
-  document.getElementById('note-panel-text').style.display = tab === 'text' ? '' : 'none';
-  document.getElementById('note-panel-voice').style.display = tab === 'voice' ? '' : 'none';
-
-  if (tab === 'text') {
-    stopVoiceNote();
-    setTimeout(() => document.getElementById('note-textarea').focus(), 200);
-  }
-}
-
-// ── Note vocale via SpeechRecognition ────────────────────
-
-function toggleVoiceNote() {
-  if (!voiceRecognition || !voiceRecognition._active) {
-    startVoiceNote();
-  } else {
-    stopVoiceNote();
-  }
-}
-
-function startVoiceNote() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    toast('Reconnaissance vocale non supportée sur ce navigateur', 'danger', 4000);
-    return;
-  }
-
-  voiceRecognition = new SpeechRecognition();
-  voiceRecognition.lang = 'fr-FR';
-  voiceRecognition.continuous = true;
-  voiceRecognition.interimResults = true;
-  voiceRecognition._active = true;
-
-  const btn = document.getElementById('btn-voice-rec');
-  const label = document.getElementById('voice-rec-label');
-  const transcript = document.getElementById('voice-transcript');
-  const hint = document.getElementById('voice-hint');
-
-  btn.classList.add('listening');
-  label.textContent = '🔴 Écoute en cours...';
-  transcript.textContent = '...';
-  hint.textContent = 'Parle clairement — appuie à nouveau pour arrêter';
-
-  let finalText = '';
-
-  voiceRecognition.onresult = (e) => {
-    let interim = '';
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      if (e.results[i].isFinal) {
-        finalText += e.results[i][0].transcript + ' ';
-      } else {
-        interim += e.results[i][0].transcript;
-      }
-    }
-    transcript.textContent = (finalText + interim).trim() || '...';
-    // Synchro vers le textarea texte aussi
-    document.getElementById('note-textarea').value = (finalText + interim).trim();
+function toggleVoiceNote(){if(!voiceRecognition||!voiceRecognition._active)startVoiceNote();else stopVoiceNote();}
+function startVoiceNote(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){toast('Reconnaissance vocale non supportée','danger',4000);return;}
+  voiceRecognition=new SR(); voiceRecognition.lang='fr-FR';
+  voiceRecognition.continuous=true; voiceRecognition.interimResults=true; voiceRecognition._active=true;
+  document.getElementById('btn-voice-rec')?.classList.add('listening');
+  const lbl=document.getElementById('voice-rec-label'),trs=document.getElementById('voice-transcript'),hnt=document.getElementById('voice-hint');
+  if(lbl)lbl.textContent='🔴 Écoute...'; if(trs)trs.textContent='...'; if(hnt)hnt.textContent='Appuie à nouveau pour arrêter';
+  let final='';
+  voiceRecognition.onresult=e=>{
+    let interim='';
+    for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)final+=e.results[i][0].transcript+' ';else interim+=e.results[i][0].transcript;}
+    const full=(final+interim).trim();
+    if(trs)trs.textContent=full||'...';
+    const ta=document.getElementById('note-textarea'); if(ta)ta.value=full;
   };
-
-  voiceRecognition.onerror = (e) => {
-    if (e.error === 'not-allowed') {
-      toast('Micro refusé — vérifie les permissions', 'danger', 4000);
-    } else if (e.error !== 'aborted') {
-      toast('Erreur vocale : ' + e.error, 'warn');
-    }
-    stopVoiceNote();
-  };
-
-  voiceRecognition.onend = () => {
-    if (voiceRecognition && voiceRecognition._active) {
-      // Redémarrer automatiquement si toujours actif (fin naturelle)
-      try { voiceRecognition.start(); } catch(e) {}
-    }
-  };
-
+  voiceRecognition.onerror=e=>{if(e.error==='not-allowed')toast('Micro refusé','danger',4000);else if(e.error!=='aborted')toast('Erreur : '+e.error,'warn');stopVoiceNote();};
+  voiceRecognition.onend=()=>{if(voiceRecognition?._active)try{voiceRecognition.start();}catch(e){}};
   voiceRecognition.start();
 }
-
-function stopVoiceNote() {
-  if (!voiceRecognition) return;
-  voiceRecognition._active = false;
-  try { voiceRecognition.stop(); } catch(e) {}
-  voiceRecognition = null;
-
-  const btn = document.getElementById('btn-voice-rec');
-  const label = document.getElementById('voice-rec-label');
-  const hint = document.getElementById('voice-hint');
-  if (btn) btn.classList.remove('listening');
-  if (label) label.textContent = 'Appuie pour dicter';
-  if (hint) hint.textContent = 'Parle clairement — la note sera transcrite automatiquement';
+function stopVoiceNote(){
+  if(!voiceRecognition)return; voiceRecognition._active=false; try{voiceRecognition.stop();}catch(e){} voiceRecognition=null;
+  document.getElementById('btn-voice-rec')?.classList.remove('listening');
+  const lbl=document.getElementById('voice-rec-label'),hnt=document.getElementById('voice-hint');
+  if(lbl)lbl.textContent='Appuie pour dicter'; if(hnt)hnt.textContent='Parle clairement';
 }
-
-// ── Ouverture / fermeture modal note ─────────────────────
-
-function openNoteModalAuto() {
-  openNoteModal();
-  // Ferme automatiquement après 8s si pas d'interaction
-  noteAutoTimeout = setTimeout(() => {
-    closeNoteModal();
-  }, 8000);
-}
-
-function openNoteModal() {
+function openNoteModalAuto(){openNoteModal();noteAutoTimeout=setTimeout(closeNoteModal,8000);}
+function openNoteModal(){
   clearTimeout(noteAutoTimeout);
-  document.getElementById('note-textarea').value = '';
-  document.getElementById('voice-transcript').textContent = 'La transcription apparaîtra ici...';
-  document.getElementById('modal-note').classList.add('open');
-  // Toujours ouvrir sur l'onglet texte par défaut
-  switchNoteTab('text');
-  setTimeout(() => document.getElementById('note-textarea').focus(), 300);
+  const ta=document.getElementById('note-textarea'),vt=document.getElementById('voice-transcript');
+  if(ta)ta.value=''; if(vt)vt.textContent='La transcription apparaîtra ici...';
+  document.getElementById('modal-note')?.classList.add('open');
+  switchNoteTab('text'); setTimeout(()=>document.getElementById('note-textarea')?.focus(),300);
 }
-
-function closeNoteModal() {
-  clearTimeout(noteAutoTimeout);
-  stopVoiceNote();
-  document.getElementById('modal-note').classList.remove('open');
-}
-
-function saveNote() {
-  clearTimeout(noteAutoTimeout);
-  stopVoiceNote();
-  // Récupérer la note : priorité au textarea (synchro avec le vocal aussi)
-  const note = document.getElementById('note-textarea').value.trim();
-  // Attacher la note au dernier arrêt
-  if (STATE.stops.length > 0 && note) {
-    const lastStop = STATE.stops[STATE.stops.length - 1];
-    lastStop.note = note;
-    toast(`📝 Note enregistrée pour l'arrêt #${lastStop.id}`, 'success');
-  }
+function closeNoteModal(){clearTimeout(noteAutoTimeout);stopVoiceNote();document.getElementById('modal-note')?.classList.remove('open');}
+function saveNote(){
+  clearTimeout(noteAutoTimeout);stopVoiceNote();
+  const note=document.getElementById('note-textarea')?.value.trim()||'';
+  if(STATE.stops.length>0&&note){const last=STATE.stops[STATE.stops.length-1];last.note=note;toast(`📝 Note arrêt #${last.id}`,'success');}
   closeNoteModal();
 }
 
-// ── ARRÊT ENREGISTREMENT ─────────────────────────────────
+// ── Fin enregistrement ───────────────────────────────────
 
-function confirmStopRecording() {
-  if (!confirm('Terminer l\'enregistrement de la tournée ?')) return;
-  stopRecording();
+function confirmStopRecording(){if(!confirm('Terminer l\'enregistrement ?'))return;stopRecording();}
+function stopRecording(){
+  STATE.isRecording=false;
+  if(STATE.watchId){navigator.geolocation.clearWatch(STATE.watchId);STATE.watchId=null;}
+  clearInterval(STATE.timerInterval); if(STATE.currentStop)endStop(Date.now());
+  if(STATE.mediaRecorder?.state!=='inactive'){STATE.mediaRecorder.stop();STATE.mediaRecorder.stream.getTracks().forEach(t=>t.stop());}
+  stopAutoSave();releaseWakeLock('wakeLock');
+  document.removeEventListener('visibilitychange',onVisibilityChange);
+  document.getElementById('fin-duration').textContent=formatDuration(Date.now()-STATE.startTime);
+  document.getElementById('fin-stops').textContent=STATE.stops.length;
+  showScreen('screen-finalize'); setTimeout(finalizeRecording,800);
 }
-
-function stopRecording() {
-  STATE.isRecording = false;
-
-  // Stopper GPS
-  if (STATE.watchId) {
-    navigator.geolocation.clearWatch(STATE.watchId);
-    STATE.watchId = null;
-  }
-
-  // Stopper timer
-  clearInterval(STATE.timerInterval);
-
-  // Fermer arrêt en cours
-  if (STATE.currentStop) endStop(Date.now());
-
-  // Stopper MediaRecorder
-  if (STATE.mediaRecorder && STATE.mediaRecorder.state !== 'inactive') {
-    STATE.mediaRecorder.stop();
-    STATE.mediaRecorder.stream.getTracks().forEach(t => t.stop());
-  }
-
-  releaseWakeLock('wakeLock');
-  document.removeEventListener('visibilitychange', onVisibilityChange);
-
-  // Stats
-  const duration = Date.now() - STATE.startTime;
-  document.getElementById('fin-duration').textContent = formatDuration(duration);
-  document.getElementById('fin-stops').textContent = STATE.stops.length;
-
-  showScreen('screen-finalize');
-
-  // Laisser le temps au MediaRecorder de flush ses derniers chunks
-  setTimeout(() => finalizeRecording(), 800);
-}
-
-// ── FINALISATION ─────────────────────────────────────────
-
-async function finalizeRecording() {
-  const progressBar = document.getElementById('fin-progress');
-  const progressLabel = document.getElementById('fin-progress-label');
-  const btnDl = document.getElementById('btn-download');
-
-  progressLabel.textContent = 'Assemblage de l\'audio...';
-  progressBar.style.width = '20%';
-
-  await sleep(200);
-
-  // Assembler tous les chunks en un seul ArrayBuffer
-  const totalSize = STATE.audioChunks.reduce((s, b) => s + b.byteLength, 0);
-  const merged = new Uint8Array(totalSize);
-  let offset = 0;
-  for (const chunk of STATE.audioChunks) {
-    merged.set(new Uint8Array(chunk), offset);
-    offset += chunk.byteLength;
-  }
-
-  progressBar.style.width = '50%';
-  progressLabel.textContent = 'Compression et synchronisation GPS...';
-  await sleep(300);
-
-  // Créer le Blob audio
-  const audioBlob = new Blob([merged], { type: STATE.audioMimeType });
-
-  // Encoder l'audio en base64
-  const audioBase64 = await blobToBase64(audioBlob);
-
-  progressBar.style.width = '80%';
-  progressLabel.textContent = 'Création du fichier tournée...';
-  await sleep(200);
-
-  // Construire le JSON final
-  const tourneeData = {
-    version: '1.0',
-    ...STATE.currentTournee,
-    duration: Date.now() - STATE.startTime,
-    stopsCount: STATE.stops.length,
-    stops: STATE.stops,
-    gpsTrace: STATE.positions,
-    audio: {
-      mimeType: STATE.audioMimeType,
-      startTime: STATE.audioStartTime,
-      data: audioBase64,
-    },
-    exportedAt: Date.now(),
-  };
-
-  STATE.finalTourneeData = tourneeData;
-
-  // Taille estimée
-  const sizeKB = Math.round(JSON.stringify(tourneeData).length / 1024);
-  const sizeMB = (sizeKB / 1024).toFixed(1);
-  document.getElementById('fin-size').textContent = `${sizeMB} MB`;
-
-  progressBar.style.width = '100%';
-  progressLabel.textContent = '✅ Fichier prêp à télécharger !';
-
-  btnDl.disabled = false;
-
-  // Sauvegarder en local (sans l'audio pour économiser de la mémoire localStorage)
-  const tourneeLight = { ...tourneeData, audio: { mimeType: STATE.audioMimeType, startTime: STATE.audioStartTime, data: '' } };
-  STATE.tournees.push(tourneeLight);
+async function finalizeRecording(){
+  const pb=document.getElementById('fin-progress'),pl=document.getElementById('fin-progress-label'),bd=document.getElementById('btn-download');
+  pl.textContent='Assemblage audio...';pb.style.width='20%';await sleep(200);
+  const total=STATE.audioChunks.reduce((s,b)=>s+b.byteLength,0);
+  const merged=new Uint8Array(total);let off=0;
+  for(const c of STATE.audioChunks){merged.set(new Uint8Array(c),off);off+=c.byteLength;}
+  pb.style.width='50%';pl.textContent='Création du fichier...';await sleep(300);
+  const audioBase64=await blobToBase64(new Blob([merged],{type:STATE.audioMimeType}));
+  pb.style.width='80%';await sleep(200);
+  const td={version:'2.0',...STATE.currentTournee,duration:Date.now()-STATE.startTime,stopsCount:STATE.stops.length,
+    stops:STATE.stops,gpsTrace:STATE.positions,audio:{mimeType:STATE.audioMimeType,startTime:STATE.audioStartTime,data:audioBase64},exportedAt:Date.now()};
+  STATE.finalTourneeData=td;
+  document.getElementById('fin-size').textContent=`${(JSON.stringify(td).length/1024/1024).toFixed(1)} MB`;
+  pb.style.width='100%';pl.textContent='✅ Prêt à télécharger !';bd.disabled=false;
+  STATE.tournees.push({...td,audio:{mimeType:STATE.audioMimeType,startTime:STATE.audioStartTime,data:''}});
   saveTourneesLocal();
 }
-
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-function blobToBase64(blob) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result.split(',')[1]);
-    reader.readAsDataURL(blob);
-  });
+function downloadTournee(){
+  if(!STATE.finalTourneeData)return;
+  const blob=new Blob([JSON.stringify(STATE.finalTourneeData)],{type:'application/json'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=`${STATE.finalTourneeData.name.replace(/[^a-zA-Z0-9\u00C0-\u024F _-]/g,'_')}_${STATE.finalTourneeData.date.replace(/\//g,'-')}.tournee`;
+  a.click();URL.revokeObjectURL(url);STATE._audioDownloaded=true;toast('💾 Tournée téléchargée !','success');
+}
+function afterFinalize(){
+  if(STATE.finalTourneeData&&!STATE._audioDownloaded){if(!confirm('⚠️ Fichier non téléchargé. Continuer ?'))return;}
+  STATE.finalTourneeData=null;STATE.audioChunks=[];STATE._audioDownloaded=false;
+  refreshManageList();showScreen('screen-manage');
 }
 
-function downloadTournee() {
-  if (!STATE.finalTourneeData) return;
-  const json = JSON.stringify(STATE.finalTourneeData);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  const safeName = STATE.finalTourneeData.name.replace(/[^a-zA-Z0-9\u00C0-\u024F _-]/g, '_');
-  a.href = url;
-  a.download = `${safeName}_${STATE.finalTourneeData.date.replace(/\//g,'-')}.tournee`;
-  a.click();
-  URL.revokeObjectURL(url);
-  STATE._audioDownloaded = true;
-  toast('💾 Tournée téléchargée !', 'success');
-}
+// ── Mes tournées ─────────────────────────────────────────
 
-function afterFinalize() {
-  if (STATE.finalTourneeData && !STATE._audioDownloaded) {
-    if (!confirm('⚠️ Tu n\'as pas encore téléchargé le fichier de la tournée.\nSi tu continues, l\'audio sera perdu définitivement.\n\nContinuer quand même ?')) return;
-  }
-  STATE.finalTourneeData = null;
-  STATE.audioChunks = [];
-  STATE._audioDownloaded = false;
-  refreshManageList();
-  showScreen('screen-manage');
-}
-
-// ── MES TOURNÉES ─────────────────────────────────────────
-
-function refreshManageList() {
+function refreshManageList(){
   loadTournees();
-  const list = document.getElementById('manage-list');
-
-  if (STATE.tournees.length === 0) {
-    list.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">🗺️</div>
-        <p>Aucune tournée enregistrée.<br>Enregistre ta première tournée avec le formateur<br>ou charge un fichier .tournee</p>
-      </div>`;
+  const list=document.getElementById('manage-list');
+  if(!STATE.tournees.length){
+    list.innerHTML=`<div class="empty-state"><div class="empty-icon">🗺️</div><p>Aucune tournée enregistrée.<br>Enregistre ta première tournée avec le formateur<br>ou charge un fichier .tournee</p></div>`;
     return;
   }
-
-  list.innerHTML = STATE.tournees.map((t, i) => `
+  list.innerHTML=STATE.tournees.map((t,i)=>`
     <div class="tournee-card">
       <div class="tc-icon">📋</div>
-      <div class="tc-info">
-        <div class="tc-name">${t.name}</div>
-        <div class="tc-meta">${t.date} · ${t.stopsCount} arrêts · ${t.porteur}</div>
-      </div>
+      <div class="tc-info"><div class="tc-name">${t.name}</div><div class="tc-meta">${t.date} · ${t.stopsCount} arrêts · ${t.porteur}</div></div>
       <div class="tc-actions">
-        <button class="tc-btn play" onclick="startNavigation(${i})" title="Naviguer">🚐</button>
-        <button class="tc-btn edit" onclick="editTournee(${i})" title="Éditer">✏️</button>
-        <button class="tc-btn del" onclick="deleteTournee(${i})" title="Supprimer">🗑️</button>
+        <button class="tc-btn play" onclick="startNavigation(${i})">🚐</button>
+        <button class="tc-btn edit" onclick="editTournee(${i})">✏️</button>
+        <button class="tc-btn del"  onclick="deleteTournee(${i})">🗑️</button>
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
-
-function deleteTournee(idx) {
-  if (!confirm(`Supprimer la tournée "${STATE.tournees[idx].name}" ?`)) return;
-  STATE.tournees.splice(idx, 1);
-  saveTourneesLocal();
-  refreshManageList();
-  toast('Tournée supprimée', 'warn');
-}
-
-function importTournee() {
-  document.getElementById('file-import').click();
-}
-
-function loadTourneeFile(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const data = JSON.parse(e.target.result);
-      if (!data.stops || !data.name) throw new Error('Format invalide');
-
-      // Vérifier si déjà présente (par id)
-      const exists = STATE.tournees.find(t => t.id === data.id);
-      if (exists) {
-        toast('Cette tournée est déjà chargée', 'warn');
-        return;
-      }
-
-      // Stocker avec l'audio complet cette fois
-      STATE.tournees.push(data);
-      saveTourneesLocal();
-      refreshManageList();
-      toast(`✅ Tournée "${data.name}" chargée !`, 'success');
-    } catch(e) {
-      toast('Fichier invalide ou corrompu', 'danger');
-    }
+function deleteTournee(idx){if(!confirm(`Supprimer "${STATE.tournees[idx].name}" ?`))return;STATE.tournees.splice(idx,1);saveTourneesLocal();refreshManageList();toast('Tournée supprimée','warn');}
+function importTournee(){document.getElementById('file-import').click();}
+function loadTourneeFile(event){
+  const file=event.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      if(!data.stops||!data.name)throw new Error();
+      if(STATE.tournees.find(t=>t.id===data.id)){toast('Déjà chargée','warn');return;}
+      STATE.tournees.push(data);saveTourneesLocal();refreshManageList();
+      toast(`✅ "${data.name}" chargée !`,'success');
+    }catch(e){toast('Fichier invalide','danger');}
   };
-  reader.readAsText(file);
-  event.target.value = '';
+  reader.readAsText(file);event.target.value='';
 }
 
-// ── ÉDITION TOURNÉE ──────────────────────────────────────
+// ── Édition ──────────────────────────────────────────────
 
-function editTournee(idx) {
-  STATE.editingTournee = { idx, data: JSON.parse(JSON.stringify(STATE.tournees[idx])) };
-  document.getElementById('edit-title').textContent = STATE.editingTournee.data.name;
-  renderEditList();
-  showScreen('screen-edit');
+function editTournee(idx){
+  STATE.editingTournee={idx,data:JSON.parse(JSON.stringify(STATE.tournees[idx]))};
+  document.getElementById('edit-title').textContent=STATE.editingTournee.data.name;
+  renderEditList();showScreen('screen-edit');
 }
-
-function renderEditList() {
-  const list = document.getElementById('edit-list');
-  const stops = STATE.editingTournee.data.stops;
-
-  list.innerHTML = stops.map((s, i) => `
-    <div class="edit-stop-card ${s._deleted ? 'deleted' : ''}" id="edit-stop-${i}">
+function renderEditList(){
+  const stops=STATE.editingTournee.data.stops;
+  document.getElementById('edit-list').innerHTML=stops.map((s,i)=>`
+    <div class="edit-stop-card ${s._deleted?'deleted':''}" id="edit-stop-${i}">
       <div class="stop-num">#${s.id}</div>
       <div class="stop-edit-info">
-        <input class="stop-edit-name" value="${s.name || 'Arrêt ' + s.id}"
-          onchange="renameStop(${i}, this.value)" ${s._deleted ? 'disabled' : ''} />
-        <div class="stop-edit-time">📍 ${formatTime(s.ts)} ${s.note ? '· 📝 ' + s.note : ''}</div>
+        <input class="stop-edit-name" value="${s.name||s.address||'Arrêt '+s.id}" onchange="editField(${i},'name',this.value)" ${s._deleted?'disabled':''}/>
+        <div style="font-size:11px;color:var(--muted);margin:2px 0">${s.address||''}</div>
+        <input class="stop-edit-maneuver" placeholder="Instruction manœuvre (ex: impasse — reculez jusqu'au 37 — puis...)"
+          value="${s.maneuver||''}" onchange="editField(${i},'maneuver',this.value)" ${s._deleted?'disabled':''}/>
+        <div class="stop-edit-time">⏱ ${formatTime(s.ts)}${s.note?' · 📝 '+s.note:''}${s.transcription?' · 🎙️ '+s.transcription.substring(0,40)+'…':''}</div>
       </div>
-      <button class="stop-del-btn" onclick="toggleDeleteStop(${i})">
-        ${s._deleted ? '↩️' : '✕'}
-      </button>
-    </div>
-  `).join('');
-
-  // Swipe to delete
-  stops.forEach((s, i) => {
-    const card = document.getElementById(`edit-stop-${i}`);
-    if (!card) return;
-    let startX = 0;
-    card.addEventListener('touchstart', e => { startX = e.touches[0].clientX; });
-    card.addEventListener('touchend', e => {
-      const dx = e.changedTouches[0].clientX - startX;
-      if (dx < -60) toggleDeleteStop(i);
-    });
+      <button class="stop-del-btn" onclick="toggleDeleteStop(${i})">${s._deleted?'↩️':'✕'}</button>
+    </div>`).join('');
+  stops.forEach((s,i)=>{
+    const card=document.getElementById(`edit-stop-${i}`);if(!card)return;
+    let sx=0;
+    card.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;});
+    card.addEventListener('touchend',e=>{if(e.changedTouches[0].clientX-sx<-60)toggleDeleteStop(i);});
   });
 }
-
-function renameStop(idx, name) {
-  STATE.editingTournee.data.stops[idx].name = name;
+function editField(idx,field,value){STATE.editingTournee.data.stops[idx][field]=value;}
+function toggleDeleteStop(idx){STATE.editingTournee.data.stops[idx]._deleted=!STATE.editingTournee.data.stops[idx]._deleted;renderEditList();}
+function saveEditedTournee(){
+  STATE.editingTournee.data.stops=STATE.editingTournee.data.stops.filter(s=>!s._deleted).map((s,i)=>({...s,id:i+1,name:s.name||`Arrêt ${i+1}`}));
+  STATE.editingTournee.data.stopsCount=STATE.editingTournee.data.stops.length;
+  STATE.tournees[STATE.editingTournee.idx]=STATE.editingTournee.data;
+  saveTourneesLocal();toast('✅ Sauvegardé','success');refreshManageList();showScreen('screen-manage');
 }
+function cancelEdit(){STATE.editingTournee=null;showScreen('screen-manage');}
 
-function toggleDeleteStop(idx) {
-  const stop = STATE.editingTournee.data.stops[idx];
-  stop._deleted = !stop._deleted;
-  renderEditList();
-}
+// ── Navigation guidée ─────────────────────────────────────
+// Instructions vocales opérationnelles avec manœuvres :
+// "Entrez dans l'impasse des Étoiles — reculez jusqu'au numéro 37 — puis demi-tour"
+// "Dans 80 mètres — arrêt Mme Dupont — La Provence — boîte 4"
+// Itinéraire snap-to-road via OSRM (open source, gratuit, aucune clé)
 
-function saveEditedTournee() {
-  // Retirer les arrêts supprimés, re-numéroter
-  STATE.editingTournee.data.stops = STATE.editingTournee.data.stops
-    .filter(s => !s._deleted)
-    .map((s, i) => ({ ...s, id: i + 1, name: s.name || `Arrêt ${i + 1}` }));
-
-  STATE.editingTournee.data.stopsCount = STATE.editingTournee.data.stops.length;
-  STATE.tournees[STATE.editingTournee.idx] = STATE.editingTournee.data;
-  saveTourneesLocal();
-  toast('✅ Tournée sauvegardée', 'success');
-  refreshManageList();
-  showScreen('screen-manage');
-}
-
-function cancelEdit() {
-  STATE.editingTournee = null;
-  showScreen('screen-manage');
-}
-
-// ── NAVIGATION GUIDÉE ────────────────────────────────────
-
-function initNavMap() {
-  STATE.navMap = L.map('nav-map', { zoomControl: false, attributionControl: false });
+function initNavMap(){
+  STATE.navMap=L.map('nav-map',{zoomControl:false,attributionControl:false});
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(STATE.navMap);
-  STATE.navMap.setView([43.2965, 5.3698], 16);
+  STATE.navMap.setView([43.2965,5.3698],16);
 }
 
-async function startNavigation(idx) {
-  const tournee = STATE.tournees[idx];
-  if (!tournee || !tournee.stops || tournee.stops.length === 0) {
-    toast('Cette tournée n\'a pas d\'arrêts enregistrés', 'danger');
-    return;
-  }
-
-  STATE.currentTournee = tournee;
-  STATE.navStops = tournee.stops.filter(s => !s._deleted);
-  STATE.navCurrentIdx = 0;
-  STATE.navRouteInstructions = [];
-  STATE.navInstrIdx = 0;
-  STATE.lastSpokenInstruction = '';
-
-  document.getElementById('nav-name').textContent = tournee.name;
-  document.getElementById('nav-progress').textContent = `Arrêt 0/${STATE.navStops.length}`;
-  document.getElementById('nav-instruction').textContent = '🧭 Démarrage de la navigation...';
-
+async function startNavigation(idx){
+  const tournee=STATE.tournees[idx];
+  if(!tournee?.stops?.length){toast('Tournée sans arrêts','danger');return;}
+  STATE.currentTournee=tournee;
+  STATE.navStops=tournee.stops.filter(s=>!s._deleted);
+  STATE.navCurrentIdx=0;STATE.navLegs=[];STATE.navCurrentLegStep=0;
+  STATE._lastGuidanceKey='';STATE._lastSpokenText='';
+  document.getElementById('nav-name').textContent=tournee.name;
+  document.getElementById('nav-progress').textContent=`Arrêt 0/${STATE.navStops.length}`;
+  document.getElementById('nav-instruction').textContent='🧭 Calcul de l\'itinéraire...';
   showScreen('screen-nav');
+  if(!STATE.navMap)initNavMap();
+  STATE.navStopMarkers.forEach(m=>STATE.navMap.removeLayer(m));STATE.navStopMarkers=[];
+  if(STATE.navRouteLine){STATE.navMap.removeLayer(STATE.navRouteLine);STATE.navRouteLine=null;}
 
-  // Init carte nav
-  if (!STATE.navMap) initNavMap();
-
-  // Placer les marqueurs d'arrêts sur la carte
-  STATE.navStopMarkers.forEach(m => STATE.navMap.removeLayer(m));
-  STATE.navStopMarkers = [];
-
-  STATE.navStops.forEach((stop, i) => {
-    const icon = L.divIcon({
-      className: '',
-      html: `<div style="background:var(--accent2);color:#000;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border:2px solid #fff">${i+1}</div>`,
-      iconSize: [22, 22], iconAnchor: [11, 11]
-    });
-    const marker = L.marker([stop.lat, stop.lng], { icon })
-      .bindPopup(`<b>Arrêt ${i+1}: ${stop.name}</b>${stop.note ? '<br>' + stop.note : ''}`)
+  // Placer tous les arrêts avec numéro et adresse précise
+  STATE.navStops.forEach((stop,i)=>{
+    const addr=stop.address||stop.name;
+    const ico=L.divIcon({className:'',
+      html:`<div style="background:var(--accent2);color:#000;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4)">${i+1}</div>`,
+      iconSize:[24,24],iconAnchor:[12,12]});
+    const marker=L.marker([stop.lat,stop.lng],{icon:ico})
+      .bindPopup(`<b>#${i+1} — ${addr}</b>${stop.note?'<br>📝 '+stop.note:''}${stop.maneuver?'<br>🔁 '+stop.maneuver:''}${stop.transcription?'<br>🎙️ '+stop.transcription.substring(0,60)+'…':''}`)
       .addTo(STATE.navMap);
     STATE.navStopMarkers.push(marker);
   });
 
+  if(STATE.navStops.length>0){
+    const bounds=L.latLngBounds(STATE.navStops.map(s=>[s.lat,s.lng]));
+    STATE.navMap.fitBounds(bounds,{padding:[30,30]});
+  }
+
+  await loadOsmTraffic(STATE.navStops);
+  await precomputeRoute();
   await acquireWakeLock('navWakeLock');
-
-  // Démarrer GPS navigation
-  STATE.navWatchId = navigator.geolocation.watchPosition(
-    onNavGpsUpdate,
-    (err) => toast('GPS : ' + err.message, 'warn'),
-    { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
-  );
-
-  speak(`Navigation démarrée. Tournée ${tournee.name}. ${STATE.navStops.length} arrêts au total.`);
+  STATE.navWatchId=navigator.geolocation.watchPosition(onNavGpsUpdate,
+    err=>toast('GPS : '+err.message,'warn'),{enableHighAccuracy:true,maximumAge:1000,timeout:10000});
+  const first=STATE.navStops[0];
+  speak(`Navigation démarrée. ${STATE.navStops.length} arrêts. Premier arrêt : ${first.address||first.name}.`);
 }
 
-function onNavGpsUpdate(pos) {
-  const { latitude: lat, longitude: lng } = pos.coords;
+// OSRM routing : itinéraire snap-to-road entre tous les arrêts
+async function precomputeRoute(){
+  if(STATE.navStops.length<2)return;
+  const coords=STATE.navStops.map(s=>`${s.lng},${s.lat}`).join(';');
+  const url=`https://router.project-osrm.org/route/v1/driving/${coords}?steps=true&geometries=geojson&overview=full`;
+  try{
+    const res=await fetch(url);if(!res.ok)return;
+    const data=await res.json();
+    const route=data.routes?.[0];if(!route)return;
+    const routeCoords=route.geometry.coordinates.map(c=>[c[1],c[0]]);
+    STATE.navRouteLine=L.polyline(routeCoords,{color:'#00d4ff',weight:4,opacity:0.8}).addTo(STATE.navMap);
+    STATE.navLegs=route.legs.map(leg=>({
+      distance:leg.distance,duration:leg.duration,
+      steps:leg.steps.map(step=>({
+        instruction:translateOsrm(step),
+        distance:Math.round(step.distance),
+        name:step.name||'',
+        maneuver:step.maneuver?.type||'',
+      })),
+    }));
+    document.getElementById('nav-instruction').textContent='🗺️ Itinéraire prêt — démarrez !';
+  }catch(e){console.warn('OSRM error',e);document.getElementById('nav-instruction').textContent='🧭 Prêt — GPS en attente...';}
+}
 
-  // Mettre à jour marqueur position
-  const posIcon = L.divIcon({ className: '', html: '<div class="pos-marker"></div>', iconSize: [16,16], iconAnchor: [8,8] });
-  if (!STATE.navPosMarker) {
-    STATE.navPosMarker = L.marker([lat, lng], { icon: posIcon }).addTo(STATE.navMap);
+function translateOsrm(step){
+  const type=step.maneuver?.type||'',mod=step.maneuver?.modifier||'',name=step.name?` sur ${step.name}`:'';
+  const dist=step.distance>0?` dans ${Math.round(step.distance)} mètres`:'';
+  const map={
+    'turn left':'Tournez à gauche','turn right':'Tournez à droite',
+    'turn slight left':'Restez à gauche','turn slight right':'Restez à droite',
+    'turn sharp left':'Virage serré à gauche','turn sharp right':'Virage serré à droite',
+    'turn uturn':'Faites demi-tour','roundabout':'Prenez le rond-point',
+    'rotary':'Prenez le rond-point','end of road left':'Au bout tournez à gauche',
+    'end of road right':'Au bout tournez à droite','arrive':'Vous êtes arrivé',
+  };
+  const key=`${type}${mod?' '+mod:''}`.trim();
+  return (map[key]||map[type]||`Continuez${name}`)+dist;
+}
+
+function onNavGpsUpdate(pos){
+  const {latitude:lat,longitude:lng}=pos.coords;
+  const pi=L.divIcon({className:'',html:'<div class="pos-marker"></div>',iconSize:[16,16],iconAnchor:[8,8]});
+  if(!STATE.navPosMarker)STATE.navPosMarker=L.marker([lat,lng],{icon:pi}).addTo(STATE.navMap);
+  else STATE.navPosMarker.setLatLng([lat,lng]);
+  STATE.navMap.panTo([lat,lng],{animate:true,duration:0.5});
+  if(STATE.navCurrentIdx>=STATE.navStops.length)return;
+  const next=STATE.navStops[STATE.navCurrentIdx];
+  const dist=distanceMeters(lat,lng,next.lat,next.lng);
+  document.getElementById('nav-next-name').textContent=next.address||next.name;
+  document.getElementById('nav-next-dist').textContent=dist<1000?`${Math.round(dist)} m`:`${(dist/1000).toFixed(1)} km`;
+  document.getElementById('nav-progress').textContent=`Arrêt ${STATE.navCurrentIdx+1}/${STATE.navStops.length}`;
+  if(dist<25){arriveAtStop(next);return;}
+  guideToNextStop(dist,next);
+}
+
+function guideToNextStop(dist,stop){
+  const key=`${STATE.navCurrentIdx}_${Math.floor(dist/25)}`;
+  if(key===STATE._lastGuidanceKey)return;
+  STATE._lastGuidanceKey=key;
+  let instruction='';
+  const leg=STATE.navLegs[STATE.navCurrentIdx];
+  const step=leg?.steps?.[STATE.navCurrentLegStep];
+
+  if(dist>200){
+    // Instruction OSRM ou générique
+    instruction=step?.instruction||`Continuez pendant ${Math.round(dist)} mètres vers ${stop.address||stop.name}.`;
+  } else if(dist>60){
+    // Approche : annoncer le stop
+    instruction=`Dans ${Math.round(dist)} mètres — ${buildStopSpeech(stop)}.`;
   } else {
-    STATE.navPosMarker.setLatLng([lat, lng]);
-  }
-  STATE.navMap.panTo([lat, lng], { animate: true, duration: 0.5 });
-
-  if (STATE.navCurrentIdx >= STATE.navStops.length) return;
-
-  const nextStop = STATE.navStops[STATE.navCurrentIdx];
-  const dist = distanceMeters(lat, lng, nextStop.lat, nextStop.lng);
-
-  // Mettre à jour l'UI
-  document.getElementById('nav-next-name').textContent = nextStop.name || `Arrêt ${nextStop.id}`;
-  document.getElementById('nav-next-dist').textContent = dist < 1000
-    ? `${Math.round(dist)} m`
-    : `${(dist/1000).toFixed(1)} km`;
-  document.getElementById('nav-progress').textContent = `Arrêt ${STATE.navCurrentIdx + 1}/${STATE.navStops.length}`;
-
-  // Arrivée à l'arrêt (< 30m)
-  if (dist < 30) {
-    arriveAtStop(nextStop);
-    return;
+    // Très proche : stop complet + manœuvre
+    instruction=`${buildStopSpeech(stop)}.`;
+    if(stop.maneuver) instruction+=` ${stop.maneuver}.`;
   }
 
-  // Guidage vocal par rapport à la distance
-  guidanceByDistance(dist, nextStop, lat, lng);
-
-  // Récupérer les instructions de routing
-  fetchRouteInstructions(lat, lng, nextStop.lat, nextStop.lng);
-}
-
-// Guidage vocal selon la distance
-function guidanceByDistance(dist, stop, fromLat, fromLng) {
-  let instruction = '';
-
-  if (dist > 500) {
-    instruction = `Prochain arrêt : ${stop.name}, dans ${Math.round(dist)} mètres.`;
-  } else if (dist > 100) {
-    instruction = `Dans ${Math.round(dist)} mètres, arrêt ${stop.name}.`;
-  } else if (dist > 30) {
-    instruction = `Arrêt ${stop.name} dans ${Math.round(dist)} mètres. Préparez-vous.`;
-  }
-
-  if (instruction && instruction !== STATE.lastSpokenInstruction) {
-    // Espacer les annonces (ne pas répéter en boucle)
-    const key = `${stop.id}_${Math.floor(dist / 50)}`;
-    if (STATE._lastGuidanceKey !== key) {
-      STATE._lastGuidanceKey = key;
-      STATE.lastSpokenInstruction = instruction;
-      document.getElementById('nav-instruction').textContent = `📍 ${instruction}`;
-      speak(instruction);
-    }
+  if(instruction&&instruction!==STATE._lastSpokenText){
+    STATE._lastSpokenText=instruction;
+    document.getElementById('nav-instruction').textContent=`🧭 ${instruction}`;
+    speak(instruction);
   }
 }
 
-// Récupérer les instructions de conduite via OpenRouteService
-let routeFetchTimeout = null;
-let lastRouteFetch = 0;
-
-async function fetchRouteInstructions(fromLat, fromLng, toLat, toLng) {
-  // Ne pas spammer l'API — max 1 requête toutes les 15s
-  const now = Date.now();
-  if (now - lastRouteFetch < 15000) return;
-  lastRouteFetch = now;
-
-  try {
-    // ⚠️  Clé ORS à remplacer par la vôtre (variable d'env recommandée)
-    const ORS_KEY = window.ORS_API_KEY || '5b3ce3597851110001cf6248a4e267dddc734b49a625e4c4e9b79b7e';
-    const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${ORS_KEY}&start=${fromLng},${fromLat}&end=${toLng},${toLat}`;
-    const res = await fetch(url);
-    if (!res.ok) return;
-    const data = await res.json();
-
-    const steps = data?.features?.[0]?.properties?.segments?.[0]?.steps;
-    if (!steps || steps.length === 0) return;
-
-    STATE.navRouteInstructions = steps;
-    STATE.navInstrIdx = 0;
-
-    // Lire la première instruction
-    const firstStep = steps[0];
-    if (firstStep && firstStep.instruction) {
-      const instr = firstStep.instruction;
-      document.getElementById('nav-instruction').textContent = `🧭 ${instr}`;
-      if (instr !== STATE.lastSpokenInstruction) {
-        STATE.lastSpokenInstruction = instr;
-        speak(instr);
-      }
-    }
-  } catch(e) {
-    // Silencieux — pas critique
-  }
+// Construit la phrase vocale pour un arrêt
+// Priorité : nom saisie > adresse géocodée > numéro d'arrêt
+function buildStopSpeech(stop){
+  if(stop.name&&stop.name!==stop.address&&!stop.name.startsWith('Arrêt '))
+    return `arrêt ${stop.name}`;
+  if(stop.address) return `arrêt ${stop.address}`;
+  return `arrêt numéro ${stop.id}`;
 }
 
-function arriveAtStop(stop) {
-  vibrate([200, 100, 200, 100, 200]);
-
-  const msg = stop.note
-    ? `Arrêt ${stop.name}. Note : ${stop.note}`
-    : `Arrêt ${stop.name} atteint.`;
-
+function arriveAtStop(stop){
+  vibrate([200,100,200,100,200]);
+  let msg=`${stop.address||stop.name||'Arrêt '+stop.id}.`;
+  if(stop.maneuver) msg+=` ${stop.maneuver}.`;
+  if(stop.note)     msg+=` ${stop.note}.`;
   speak(msg);
-  document.getElementById('nav-instruction').textContent = `✅ ${msg}`;
-  toast(`✅ Arrêt ${stop.name}`, 'success');
-
-  // Marquer visuellement l'arrêt comme visité
-  const marker = STATE.navStopMarkers[STATE.navCurrentIdx];
-  if (marker) {
-    const icon = L.divIcon({
-      className: '',
-      html: `<div style="background:var(--success);color:#000;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border:2px solid #fff">✓</div>`,
-      iconSize: [22, 22], iconAnchor: [11, 11]
-    });
-    marker.setIcon(icon);
-  }
-
-  STATE.navCurrentIdx++;
-  STATE.navRouteInstructions = [];
-  STATE.navInstrIdx = 0;
-  STATE.lastSpokenInstruction = '';
-  STATE._lastGuidanceKey = '';
-
-  if (STATE.navCurrentIdx >= STATE.navStops.length) {
-    // Tournée terminée !
+  document.getElementById('nav-instruction').textContent=`✅ ${msg}`;
+  toast(`✅ ${stop.address||stop.name}`,'success');
+  const marker=STATE.navStopMarkers[STATE.navCurrentIdx];
+  if(marker)marker.setIcon(L.divIcon({className:'',
+    html:`<div style="background:var(--success);color:#000;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid #fff">✓</div>`,
+    iconSize:[24,24],iconAnchor:[12,12]}));
+  STATE.navCurrentIdx++;STATE.navCurrentLegStep=0;STATE._lastGuidanceKey='';STATE._lastSpokenText='';
+  if(STATE.navCurrentIdx>=STATE.navStops.length){
     speak('Félicitations ! Vous avez terminé la tournée.');
-    toast('🎉 Tournée terminée !', 'success', 5000);
-    document.getElementById('nav-instruction').textContent = '🎉 Tournée terminée ! Bravo !';
-    document.getElementById('nav-next-name').textContent = 'Terminé';
-    document.getElementById('nav-next-dist').textContent = '—';
+    toast('🎉 Tournée terminée !','success',5000);
+    document.getElementById('nav-instruction').textContent='🎉 Tournée terminée !';
+    document.getElementById('nav-next-name').textContent='Terminé';
+    document.getElementById('nav-next-dist').textContent='—';
     stopNavigation(true);
   } else {
-    const next = STATE.navStops[STATE.navCurrentIdx];
-    speak(`Prochain arrêt : ${next.name}.`);
-    lastRouteFetch = 0; // Forcer un nouveau calcul d'itinéraire
+    const next=STATE.navStops[STATE.navCurrentIdx];
+    let nextMsg=`Prochain arrêt : ${next.address||next.name}.`;
+    if(next.maneuver) nextMsg+=` ${next.maneuver}.`;
+    speak(nextMsg);
   }
 }
 
-function repeatInstruction() {
-  const instr = document.getElementById('nav-instruction').textContent;
-  speak(instr.replace(/^[🧭✅📍]/, '').trim());
-}
-
-function stopNavigation(silent = false) {
-  if (STATE.navWatchId) {
-    navigator.geolocation.clearWatch(STATE.navWatchId);
-    STATE.navWatchId = null;
-  }
+function repeatInstruction(){speak(document.getElementById('nav-instruction').textContent.replace(/^[🧭✅📍]/,'').trim());}
+function stopNavigation(silent=false){
+  if(STATE.navWatchId){navigator.geolocation.clearWatch(STATE.navWatchId);STATE.navWatchId=null;}
   releaseWakeLock('navWakeLock');
-
-  if (STATE.navPosMarker) {
-    STATE.navMap.removeLayer(STATE.navPosMarker);
-    STATE.navPosMarker = null;
-  }
-
+  if(STATE.navPosMarker){STATE.navMap.removeLayer(STATE.navPosMarker);STATE.navPosMarker=null;}
   window.speechSynthesis.cancel();
-
-  if (!silent) refreshManageList();
+  if(!silent)refreshManageList();
   showScreen('screen-manage');
 }
 
-// ── INIT ─────────────────────────────────────────────────
+// ── Init ─────────────────────────────────────────────────
 
-function init() {
-  loadTournees();
-
-  // Pré-charger la voix FR si dispo
-  if (window.speechSynthesis) {
-    window.speechSynthesis.getVoices();
-    window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
-  }
+function init(){
+  loadTournees();loadSettings();checkDraftRecovery();
+  if(window.speechSynthesis){window.speechSynthesis.getVoices();window.speechSynthesis.onvoiceschanged=()=>window.speechSynthesis.getVoices();}
 }
-
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded',init);
