@@ -1001,7 +1001,12 @@ function translateOsrm(step){
 }
 
 // UX-C : icône position créée une seule fois
-const _navPosIcon=L.divIcon({className:'',html:'<div class="pos-marker"></div>',iconSize:[16,16],iconAnchor:[8,8]});
+// _navPosIcon lazy-init : L. n'est pas encore dispo au chargement du script
+let _navPosIcon=null;
+function getNavPosIcon(){
+  if(!_navPosIcon)_navPosIcon=L.divIcon({className:'',html:'<div class="pos-marker"></div>',iconSize:[16,16],iconAnchor:[8,8]});
+  return _navPosIcon;
+}
 
 let _lastNavPos=null;
 function onNavGpsUpdate(pos){
@@ -1009,7 +1014,7 @@ function onNavGpsUpdate(pos){
   STATE.currentPos={lat,lng};
 
   // UX-C : réutiliser l'icône pré-créée
-  if(!STATE.navPosMarker)STATE.navPosMarker=L.marker([lat,lng],{icon:_navPosIcon}).addTo(STATE.navMap);
+  if(!STATE.navPosMarker)STATE.navPosMarker=L.marker([lat,lng],{icon:getNavPosIcon()}).addTo(STATE.navMap);
   else STATE.navPosMarker.setLatLng([lat,lng]);
 
   // FIX #13 : suivre seulement si mode follow actif
