@@ -153,21 +153,25 @@ function saveSettings(){
   toast('Réglages sauvegardés','success');showScreen('screen-home');
 }
 function startAutoSave(){
-  STATE._autoSaveInterval=setInterval(()=>{
-    if(!STATE.isRecording||!STATE.currentTournee)return;
-    const snap={...STATE.currentTournee,stops:STATE.stops,gpsTrace:STATE.positions,
-      duration:Date.now()-STATE.startTime,stopsCount:STATE.stops.length,_draft:true};
-    try{localStorage.setItem('draft_tournee',JSON.stringify(snap));}catch(e){}
-  },90000);
+  // Sauvegarde toutes les 15s — perte max = 15s si l'appli est fermée brutalement
+  STATE._autoSaveInterval=setInterval(()=>saveDraft(),15000);
+}
+function saveDraft(){
+  if(!STATE.isRecording||!STATE.currentTournee)return;
+  const snap={...STATE.currentTournee,stops:STATE.stops,gpsTrace:STATE.positions,
+    duration:Date.now()-STATE.startTime,stopsCount:STATE.stops.length,_draft:true};
+  try{localStorage.setItem('draft_tournee',JSON.stringify(snap));}catch(e){}
 }
 function stopAutoSave(){clearInterval(STATE._autoSaveInterval);localStorage.removeItem('draft_tournee');}
 function checkDraftRecovery(){
   try{
     const raw=localStorage.getItem('draft_tournee');if(!raw)return;
     const d=JSON.parse(raw);if(!d._draft||!d.stopsCount)return;
-    if(confirm(`⚠️ Session interrompue : "${d.name}" (${d.stopsCount} arrêts). Récupérer ?`)){
+    const lastStop=d.stops[d.stopsCount-1];
+    const heure=lastStop?formatTime(lastStop.ts):'';
+    if(confirm(`⚠️ Tournée interrompue : "${d.name}"\n${d.stopsCount} arrêts enregistrés${heure?' (dernier à '+heure+')':''}\n\nRécupérer ?`)){
       d._draft=false;STATE.tournees.push(d);saveTourneesLocal();
-      localStorage.removeItem('draft_tournee');toast('Session récupérée','success',4000);
+      localStorage.removeItem('draft_tournee');toast('✅ Tournée récupérée !','success',4000);
     }else{localStorage.removeItem('draft_tournee');}
   }catch(e){}
 }
@@ -473,8 +477,8 @@ function detectStop(lat,lng,ts,speed){
         const midLat=(STATE.stopFirstLat+STATE.stopLastLat)/2;
         const midLng=(STATE.stopFirstLng+STATE.stopLastLng)/2;
         if(dur<D.FEU_DUR_MS&&distToNearestTraffic(midLat,midLng)<D.FEU_DIST_M){STATE.pendingStop=false;return;}
-        if(dur<D.CONFIRM_BELOW)askQuickConfirm(midLat,midLng,STATE.stopStartTime);
-        else validateStop(midLat,midLng,STATE.stopStartTime);
+        // Validation directe — plus de confirmation manuelle
+        validateStop(midLat,midLng,STATE.stopStartTime);
       },D.MIN_DUR_MS);
     }else{
       STATE.stopLastLat=lat;STATE.stopLastLng=lng;
@@ -1160,5 +1164,37 @@ function stopNavigation(silent=false){
 function init(){
   loadTournees();loadSettings();checkDraftRecovery();
   if(window.speechSynthesis){window.speechSynthesis.getVoices();window.speechSynthesis.onvoiceschanged=()=>window.speechSynthesis.getVoices();}
+
+  // ── Protection bouton Retour Android ─────────────────────
+  // On pousse un état fictif dans l'historique au démarrage.
+  // Quand l'utilisateur appuie sur Retour, popstate se déclenche
+  // AVANT que le navigateur quitte l'appli — on peut intercepter.
+  history.pushState({app:'tournee'}, '');
+
+  window.addEventListener('popstate', ()=>{
+    if(STATE.isRecording){
+      // Sauvegarde immédiate avant tout
+      saveDraft();
+      // Demander confirmation
+      if(confirm('⚠️ Enregistrement en cours !\nAppuyer sur Retour va quitter l\'appli.\n\nTA TOURNÉE EST SAUVEGARDÉE et récupérable au prochain lancement.\n\nQuitter quand même ?')){
+        // L'utilisateur confirme → on laisse le navigateur partir
+        // La draft est déjà sauvegardée
+      }else{
+        // L'utilisateur annule → on repousse un état pour la prochaine fois
+        history.pushState({app:'tournee'}, '');
+      }
+    }else{
+      // Pas d'enregistrement en cours → comportement normal
+      // Repousser l'état pour la prochaine pression Retour
+      history.pushState({app:'tournee'}, '');
+    }
+  });
+
+  // Sauvegarde aussi quand l'appli passe en arrière-plan (appel entrant, etc.)
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.hidden && STATE.isRecording){
+      saveDraft();
+    }
+  });
 }
 document.addEventListener('DOMContentLoaded',init);
