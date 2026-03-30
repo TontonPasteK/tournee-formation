@@ -762,52 +762,64 @@ function stopRecording(){
 }
 
 async function finalizeRecording(){
-  const pb=document.getElementById('fin-progress'),pl=document.getElementById('fin-progress-label'),bd=document.getElementById('btn-download');
-  // FIX #10 : try/catch global pour OOM sur mobile
+  const pb=document.getElementById('fin-progress'),pl=document.getElementById('fin-progress-label');
+  const bd=document.getElementById('btn-download'),ba=document.getElementById('btn-download-audio');
   try{
-    pl.textContent='Assemblage audio...';pb.style.width='20%';await sleep(200);
+    pl.textContent='Assemblage audio...';pb.style.width='30%';await sleep(200);
     const total=STATE.audioChunks.reduce((s,b)=>s+b.byteLength,0);
     const merged=new Uint8Array(total);let off=0;
     for(const c of STATE.audioChunks){merged.set(new Uint8Array(c),off);off+=c.byteLength;}
-    pb.style.width='50%';pl.textContent='Création du fichier...';await sleep(300);
-    const audioBase64=await blobToBase64(new Blob([merged],{type:STATE.audioMimeType}));
-    pb.style.width='80%';await sleep(200);
-    const td={version:'2.1',...STATE.currentTournee,duration:Date.now()-STATE.startTime,stopsCount:STATE.stops.length,
-      stops:STATE.stops,gpsTrace:STATE.positions,audio:{mimeType:STATE.audioMimeType,startTime:STATE.audioStartTime,data:audioBase64},exportedAt:Date.now()};
+    STATE._audioBlob=new Blob([merged],{type:STATE.audioMimeType});
+    pb.style.width='70%';pl.textContent='Préparation des fichiers...';await sleep(200);
+    // Données seules — sans audio base64, léger et partageable
+    const td={version:'2.1',...STATE.currentTournee,
+      duration:Date.now()-STATE.startTime,stopsCount:STATE.stops.length,
+      stops:STATE.stops,gpsTrace:STATE.positions,
+      audio:{mimeType:STATE.audioMimeType,startTime:STATE.audioStartTime},
+      exportedAt:Date.now()};
     STATE.finalTourneeData=td;
-    document.getElementById('fin-size').textContent=`${(JSON.stringify(td).length/1024/1024).toFixed(1)} MB`;
-    pb.style.width='100%';pl.textContent='✅ Prêt à télécharger !';bd.disabled=false;
-    STATE.tournees.push({...td,audio:{mimeType:STATE.audioMimeType,startTime:STATE.audioStartTime,data:''}});
-    saveTourneesLocal();
+    const dataSize=(JSON.stringify(td).length/1024).toFixed(0);
+    const audioSize=(total/1024/1024).toFixed(1);
+    document.getElementById('fin-size').textContent=`données ${dataSize} Ko`;
+    document.getElementById('fin-audio-size').textContent=`audio ${audioSize} MB`;
+    pb.style.width='100%';pl.textContent='✅ Prêt !';
+    bd.disabled=false;if(ba)ba.disabled=false;
+    STATE.tournees.push({...td});saveTourneesLocal();
   }catch(err){
-    // FIX #10 : erreur OOM ou autre
-    pl.textContent='⚠️ Erreur lors de la création du fichier';
-    pb.style.width='0%';
-    toast('Erreur mémoire — essaie de libérer de la RAM ou utilise un autre navigateur','danger',8000);
-    console.error('finalizeRecording error:',err);
-    // Proposer quand même de télécharger les données sans audio
-    const tdLight={version:'2.1',...STATE.currentTournee,duration:Date.now()-STATE.startTime,stopsCount:STATE.stops.length,
-      stops:STATE.stops,gpsTrace:STATE.positions,audio:null,exportedAt:Date.now()};
-    STATE.finalTourneeData=tdLight;
-    bd.disabled=false;bd.textContent='💾 Télécharger (sans audio)';
+    pl.textContent='⚠️ Erreur — données disponibles sans audio';
+    pb.style.width='100%';console.error('finalizeRecording error:',err);
+    const td={version:'2.1',...STATE.currentTournee,duration:Date.now()-STATE.startTime,
+      stopsCount:STATE.stops.length,stops:STATE.stops,gpsTrace:STATE.positions,exportedAt:Date.now()};
+    STATE.finalTourneeData=td;bd.disabled=false;
+    STATE.tournees.push({...td});saveTourneesLocal();
   }
 }
 
+function _triggerDownload(blob,filename){
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=filename;
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);URL.revokeObjectURL(url);
+}
+function _baseName(){
+  return (STATE.finalTourneeData?.name||'tournee').replace(/[^a-zA-Z0-9À-ɏ _-]/g,'_')
+    +'_'+(STATE.finalTourneeData?.date||'').replace(/\//g,'-');
+}
+// Bouton 1 : données seules (quelques Ko — partageable WhatsApp/email/Drive)
 function downloadTournee(){
   if(!STATE.finalTourneeData)return;
-  const blob=new Blob([JSON.stringify(STATE.finalTourneeData)],{type:'application/json'});
-  const url=URL.createObjectURL(blob),a=document.createElement('a');
-  a.href=url;
-  a.download=`${STATE.finalTourneeData.name.replace(/[^a-zA-Z0-9\u00C0-\u024F _-]/g,'_')}_${STATE.finalTourneeData.date.replace(/\//g,'-')}.tournee`;
-  // BUG-G : attacher au DOM avant click (Firefox Android)
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  STATE._audioDownloaded=true;toast('💾 Tournée téléchargée !','success');
+  _triggerDownload(new Blob([JSON.stringify(STATE.finalTourneeData)],{type:'application/json'}),_baseName()+'.tournee');
+  STATE._dataDownloaded=true;toast('💾 Données téléchargées !','success');
+}
+// Bouton 2 : audio seul (~18 MB — via Drive ou câble USB)
+function downloadAudio(){
+  if(!STATE._audioBlob)return;
+  const ext=STATE.audioMimeType.includes('ogg')?'ogg':'webm';
+  _triggerDownload(STATE._audioBlob,_baseName()+'.'+ext);
+  STATE._audioDownloaded=true;toast('🎙️ Audio téléchargé !','success');
 }
 function afterFinalize(){
-  if(STATE.finalTourneeData&&!STATE._audioDownloaded){if(!confirm('⚠️ Fichier non téléchargé. Continuer ?'))return;}
+  if(!STATE._dataDownloaded&&!confirm('⚠️ Données non téléchargées. Continuer ?'))return;
   STATE.finalTourneeData=null;STATE.audioChunks=[];STATE._audioDownloaded=false;
   refreshManageList();showScreen('screen-manage');
 }
