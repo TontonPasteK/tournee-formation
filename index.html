@@ -1166,26 +1166,41 @@
           <div class="stat-lbl">Arrêts</div>
         </div>
         <div class="stat-item">
-          <div class="stat-val" id="fin-size">0 MB</div>
-          <div class="stat-lbl">Fichier</div>
+          <div class="stat-val" id="fin-size">—</div>
+          <div class="stat-lbl">Audio</div>
         </div>
       </div>
       <div class="progress-bar-wrap">
         <div class="progress-bar-fill" id="fin-progress"></div>
       </div>
-      <div class="progress-label" id="fin-progress-label">Compression de l'audio en cours...</div>
+      <div class="progress-label" id="fin-progress-label">Préparation...</div>
+
+      <!-- Bouton 1 : données légères -->
       <button class="btn-finalize" id="btn-download" onclick="downloadTournee()" disabled>
-        💾 Télécharger les données
+        💾 Données seules
       </button>
-      <div style="font-size:11px;color:var(--muted);text-align:center;margin:-8px 0 4px" id="fin-size">—</div>
+      <div style="font-size:11px;color:var(--muted);text-align:center;margin:-10px 0 8px">
+        Quelques Ko — partageable WhatsApp / email
+      </div>
+
+      <!-- Bouton 2 : tout en un (si < 25 Mo) -->
+      <button class="btn-finalize" id="btn-download-all" onclick="downloadAll()" disabled
+        style="background:var(--card);border:1px solid var(--success);color:var(--success);margin-top:0">
+        📦 Tout en un seul fichier
+      </button>
+      <div style="font-size:11px;color:var(--muted);text-align:center;margin:-10px 0 8px" id="fin-all-size">
+        Données + audio — si &lt; 25 Mo
+      </div>
+
+      <!-- Bouton 3 : audio seul (grandes tournées) -->
       <button class="btn-finalize" id="btn-download-audio" onclick="downloadAudio()" disabled
         style="background:var(--card);border:1px solid var(--accent);color:var(--accent);margin-top:0">
-        🎙️ Télécharger l'audio séparé
+        🎙️ Audio seul (.webm)
       </button>
-      <div style="font-size:11px;color:var(--muted);text-align:center;margin:-8px 0 4px" id="fin-audio-size">—</div>
-      <div style="font-size:11px;color:var(--muted);text-align:center;padding:0 16px;margin-bottom:8px">
-        Les données seules sont légères et partageables par WhatsApp ou email
+      <div style="font-size:11px;color:var(--muted);text-align:center;margin:-10px 0 8px" id="fin-audio-size">
+        Pour les grandes tournées — via Drive ou câble
       </div>
+
       <button class="btn-back" onclick="afterFinalize()">← Mes tournées</button>
     </div>
   </div>
