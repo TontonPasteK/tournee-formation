@@ -1175,8 +1175,17 @@
       </div>
       <div class="progress-label" id="fin-progress-label">Compression de l'audio en cours...</div>
       <button class="btn-finalize" id="btn-download" onclick="downloadTournee()" disabled>
-        💾 Télécharger la tournée
+        💾 Télécharger les données
       </button>
+      <div style="font-size:11px;color:var(--muted);text-align:center;margin:-8px 0 4px" id="fin-size">—</div>
+      <button class="btn-finalize" id="btn-download-audio" onclick="downloadAudio()" disabled
+        style="background:var(--card);border:1px solid var(--accent);color:var(--accent);margin-top:0">
+        🎙️ Télécharger l'audio séparé
+      </button>
+      <div style="font-size:11px;color:var(--muted);text-align:center;margin:-8px 0 4px" id="fin-audio-size">—</div>
+      <div style="font-size:11px;color:var(--muted);text-align:center;padding:0 16px;margin-bottom:8px">
+        Les données seules sont légères et partageables par WhatsApp ou email
+      </div>
       <button class="btn-back" onclick="afterFinalize()">← Mes tournées</button>
     </div>
   </div>
