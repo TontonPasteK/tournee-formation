@@ -373,7 +373,7 @@ async function startRecording(){
   const mimeType=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':
     MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':'audio/ogg;codecs=opus';
   STATE.audioMimeType=mimeType;
-  STATE.mediaRecorder=new MediaRecorder(stream,{mimeType,audioBitsPerSecond:32000});
+  STATE.mediaRecorder=new MediaRecorder(stream,{mimeType,audioBitsPerSecond:16000});
   STATE.mediaRecorder.ondataavailable=e=>{if(e.data?.size>0)e.data.arrayBuffer().then(b=>STATE.audioChunks.push(b));};
   STATE.mediaRecorder.start(5000);
 
@@ -764,6 +764,7 @@ function stopRecording(){
 async function finalizeRecording(){
   const pb=document.getElementById('fin-progress'),pl=document.getElementById('fin-progress-label');
   const bd=document.getElementById('btn-download'),ba=document.getElementById('btn-download-audio');
+  const ball=document.getElementById('btn-download-all');
   try{
     pl.textContent='Assemblage audio...';pb.style.width='30%';await sleep(200);
     const total=STATE.audioChunks.reduce((s,b)=>s+b.byteLength,0);
@@ -771,17 +772,28 @@ async function finalizeRecording(){
     for(const c of STATE.audioChunks){merged.set(new Uint8Array(c),off);off+=c.byteLength;}
     STATE._audioBlob=new Blob([merged],{type:STATE.audioMimeType});
     pb.style.width='70%';pl.textContent='Préparation des fichiers...';await sleep(200);
-    // Données seules — sans audio base64, léger et partageable
+    // Données seules — sans audio base64
     const td={version:'2.1',...STATE.currentTournee,
       duration:Date.now()-STATE.startTime,stopsCount:STATE.stops.length,
       stops:STATE.stops,gpsTrace:STATE.positions,
       audio:{mimeType:STATE.audioMimeType,startTime:STATE.audioStartTime},
       exportedAt:Date.now()};
     STATE.finalTourneeData=td;
-    const dataSize=(JSON.stringify(td).length/1024).toFixed(0);
-    const audioSize=(total/1024/1024).toFixed(1);
-    document.getElementById('fin-size').textContent=`données ${dataSize} Ko`;
-    document.getElementById('fin-audio-size').textContent=`audio ${audioSize} MB`;
+    const audioMB=(total/1024/1024).toFixed(1);
+    // Estimer la taille du fichier complet (base64 = ~1.37× la taille binaire)
+    const allMB=(total*1.37/1024/1024).toFixed(1);
+    document.getElementById('fin-size').textContent=`${audioMB} MB`;
+    document.getElementById('fin-audio-size').textContent=`Audio seul — ${audioMB} MB`;
+    // Activer "Tout en un" seulement si < 20 Mo (marge pour base64)
+    if(ball){
+      if(total*1.37 < 20*1024*1024){
+        ball.disabled=false;
+        document.getElementById('fin-all-size').textContent=`Données + audio — ${allMB} MB`;
+      }else{
+        ball.disabled=true;
+        document.getElementById('fin-all-size').textContent=`Trop lourd (${allMB} MB) — utilise les deux boutons séparés`;
+      }
+    }
     pb.style.width='100%';pl.textContent='✅ Prêt !';
     bd.disabled=false;if(ba)ba.disabled=false;
     STATE.tournees.push({...td});saveTourneesLocal();
@@ -811,12 +823,32 @@ function downloadTournee(){
   _triggerDownload(new Blob([JSON.stringify(STATE.finalTourneeData)],{type:'application/json'}),_baseName()+'.tournee');
   STATE._dataDownloaded=true;toast('💾 Données téléchargées !','success');
 }
-// Bouton 2 : audio seul (~18 MB — via Drive ou câble USB)
+// Bouton 2 : audio seul (WebM — via Drive ou câble USB)
 function downloadAudio(){
   if(!STATE._audioBlob)return;
   const ext=STATE.audioMimeType.includes('ogg')?'ogg':'webm';
   _triggerDownload(STATE._audioBlob,_baseName()+'.'+ext);
   STATE._audioDownloaded=true;toast('🎙️ Audio téléchargé !','success');
+}
+// Bouton 3 : tout en un seul fichier .tournee (données + audio base64)
+// Utile si le fichier final fait < 25 Mo (tournées courtes)
+async function downloadAll(){
+  if(!STATE.finalTourneeData||!STATE._audioBlob)return;
+  const btn=document.getElementById('btn-download-all');
+  if(btn){btn.disabled=true;btn.textContent='⏳ Assemblage...';}
+  try{
+    const audioBase64=await blobToBase64(STATE._audioBlob);
+    const td={...STATE.finalTourneeData,
+      audio:{mimeType:STATE.audioMimeType,startTime:STATE.audioStartTime,data:audioBase64}};
+    const size=(JSON.stringify(td).length/1024/1024).toFixed(1);
+    _triggerDownload(new Blob([JSON.stringify(td)],{type:'application/json'}),_baseName()+'_complet.tournee');
+    STATE._dataDownloaded=true;
+    toast(`💾 Fichier complet téléchargé (${size} MB) !`,'success',5000);
+  }catch(e){
+    toast('⚠️ Fichier trop lourd — utilise les deux boutons séparés','danger',5000);
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='📦 Tout en un seul fichier';}
+  }
 }
 function afterFinalize(){
   if(!STATE._dataDownloaded&&!confirm('⚠️ Données non téléchargées. Continuer ?'))return;
