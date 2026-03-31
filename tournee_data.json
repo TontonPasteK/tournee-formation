@@ -1,0 +1,1288 @@
+[
+  {
+    "stop": 0,
+    "heure": "~05:30",
+    "type": "Dépôt",
+    "adresse": "68 Boulevard du Capitaine Gèze, 13014",
+    "lat": 43.32975,
+    "lng": 5.36811,
+    "clients": [
+      {
+        "nom": "LOBRY Rémy",
+        "n": "68",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "Restaurant MINA",
+        "n": "68",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "6/7"
+      },
+      {
+        "nom": "M. PICOT",
+        "n": "68",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "instruction": "Récupérer les journaux au dépôt. Préparer le lot. Distribuer les 3 clients sur place.",
+    "direction_next": "Prendre direction nord vers Rue Marcel Roman"
+  },
+  {
+    "stop": 1,
+    "heure": "05:45:51",
+    "type": "Livraison",
+    "adresse": "1 Rue Marcel Roman, 13015",
+    "clients": [
+      {
+        "nom": "PRATALI Marie Claude",
+        "n": "1",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Continuer vers Rue Le Chatelier",
+    "lat": 43.3458222,
+    "lng": 5.3670214
+  },
+  {
+    "stop": 2,
+    "heure": "05:47:28",
+    "type": "Livraison",
+    "adresse": "159 Rue Le Chatelier, 13015 (Résidence des Dauphins)",
+    "clients": [
+      {
+        "nom": "BOUTOBBA Walid",
+        "n": "113",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "BERGONZO Alain",
+        "n": "159",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "CHABERT Raymond",
+        "n": "159",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "BOUVIER René",
+        "n": "159",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "MARINO Raymond",
+        "n": "159",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "5/7"
+      }
+    ],
+    "direction_next": "Continuer dans la résidence",
+    "lat": 43.3478517,
+    "lng": 5.3621704
+  },
+  {
+    "stop": 3,
+    "heure": "05:49:19",
+    "type": "Livraison",
+    "adresse": "135 Rue Le Chatelier, 13015",
+    "clients": [
+      {
+        "nom": "GARRAU Joseph",
+        "n": "135",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "6/7"
+      }
+    ],
+    "direction_next": "Entrer dans Résidence des Dauphins",
+    "lat": 43.3485716,
+    "lng": 5.3711997
+  },
+  {
+    "stop": 4,
+    "heure": "05:50:37",
+    "type": "Livraison",
+    "adresse": "Résidence des Dauphins - Bât intérieurs",
+    "clients": [
+      {
+        "nom": "LAO Michel",
+        "n": "63",
+        "titres": [
+          "Le Monde"
+        ],
+        "freq": "2/7",
+        "note": "SUSPENDU depuis 31/03"
+      },
+      {
+        "nom": "BOUVIER (Résidence)",
+        "n": "74",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "CHABERT (Résidence)",
+        "n": "82",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Continuer dans la résidence",
+    "lat": 43.348,
+    "lng": 5.3635
+  },
+  {
+    "stop": 5,
+    "heure": "05:52:44",
+    "type": "Livraison",
+    "adresse": "Résidence des Dauphins - Bât 89/100",
+    "clients": [
+      {
+        "nom": "MAURNO / A. LASSER",
+        "n": "89",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Sortir résidence à gauche vers Station",
+    "lat": 43.3479,
+    "lng": 5.364
+  },
+  {
+    "stop": 6,
+    "heure": "05:54:07",
+    "type": "Livraison",
+    "adresse": "Station des Aygalades (bas résidence)",
+    "clients": [
+      {
+        "nom": "GOREAU",
+        "n": "",
+        "titres": [
+          "Télé 7 jours"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Prendre vers Résidence Les Lions",
+    "lat": 43.3482,
+    "lng": 5.37
+  },
+  {
+    "stop": 7,
+    "heure": "05:56:56",
+    "type": "Livraison",
+    "adresse": "Résidence Les Lions - Dorgelès",
+    "clients": [
+      {
+        "nom": "Mme KADRI",
+        "n": "",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Continuer Boulevard Roland Dorgelès",
+    "lat": 43.3483,
+    "lng": 5.3765
+  },
+  {
+    "stop": 8,
+    "heure": "05:58:10",
+    "type": "Livraison",
+    "adresse": "60 Boulevard Roland Dorgelès, 13014",
+    "clients": [
+      {
+        "nom": "STATION DORGELÈS",
+        "n": "60",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Tourner vers Chemin de Fontainieu",
+    "lat": 43.3484537,
+    "lng": 5.3770094
+  },
+  {
+    "stop": 9,
+    "heure": "05:59:27",
+    "type": "Livraison",
+    "adresse": "Résidence Les Lions, Chemin de Fontainieu, 13014",
+    "clients": [
+      {
+        "nom": "FONT",
+        "n": "",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "ROGER",
+        "n": "",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "MARTIN",
+        "n": "",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "AUDRIC",
+        "n": "",
+        "titres": [
+          "Le Monde"
+        ],
+        "freq": "6/7"
+      }
+    ],
+    "direction_next": "Sortir résidence, prendre à gauche",
+    "lat": 43.349,
+    "lng": 5.3785
+  },
+  {
+    "stop": 10,
+    "heure": "05:59:57",
+    "type": "Livraison",
+    "adresse": "10 Boulevard Étienne Solar, 13014",
+    "clients": [
+      {
+        "nom": "ALIAS Colette",
+        "n": "10",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "LANG Jean Michel",
+        "n": "10bis",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "En sortant du boulevard, prendre à gauche",
+    "lat": 43.3496729,
+    "lng": 5.380367
+  },
+  {
+    "stop": 11,
+    "heure": "06:01:39",
+    "type": "Livraison",
+    "adresse": "Impasse Jean Loret, 13014",
+    "clients": [
+      {
+        "nom": "RODRIGUEZ Gabriel",
+        "n": "5",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "NAOURI Francine",
+        "n": "10",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Après l'impasse, prendre à droite puis en face",
+    "lat": 43.3477848,
+    "lng": 5.3781972
+  },
+  {
+    "stop": 12,
+    "heure": "06:02:45",
+    "type": "Livraison",
+    "adresse": "43 Rue Paul Coxe, 13015",
+    "clients": [
+      {
+        "nom": "CÔTÉ VISION",
+        "n": "43",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "6/7",
+        "note": "Code portail 5389A"
+      }
+    ],
+    "direction_next": "Traverser vers n°38",
+    "lat": 43.3481744,
+    "lng": 5.3763322
+  },
+  {
+    "stop": 13,
+    "heure": "06:04:06",
+    "type": "Livraison",
+    "adresse": "38 Rue Paul Coxe, 13015",
+    "clients": [
+      {
+        "nom": "DE QUEIROZ Julien",
+        "n": "38",
+        "titres": [
+          "Provence",
+          "Le Monde (week-end)"
+        ],
+        "freq": "7/7",
+        "note": "Digicode 4469A"
+      }
+    ],
+    "direction_next": "Remonter vers Bd Charles Bourseult",
+    "lat": 43.3468853,
+    "lng": 5.3784451
+  },
+  {
+    "stop": 14,
+    "heure": "06:05:15",
+    "type": "Livraison",
+    "adresse": "5 Boulevard Charles Bourseult, 13014",
+    "clients": [
+      {
+        "nom": "CROS Pierre",
+        "n": "5",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Descendre vers Rue Véga",
+    "lat": 43.3429712,
+    "lng": 5.3794996
+  },
+  {
+    "stop": 15,
+    "heure": "06:07:40",
+    "type": "Livraison",
+    "adresse": "47 Rue Véga, 13015",
+    "clients": [
+      {
+        "nom": "LOPEZ Jacqueline",
+        "n": "47",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Tourner vers Rue Mars",
+    "lat": 43.3428678,
+    "lng": 5.3721586
+  },
+  {
+    "stop": 16,
+    "heure": "06:08:58",
+    "type": "Livraison",
+    "adresse": "Rue Mars, 13015",
+    "clients": [
+      {
+        "nom": "MARTINEZ Palmyre",
+        "n": "33",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "5/7"
+      },
+      {
+        "nom": "BRANGIER Jean-Marie",
+        "n": "39",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "5/7"
+      }
+    ],
+    "direction_next": "Tourner dans Rue Uranus",
+    "lat": 43.3425672,
+    "lng": 5.3737611
+  },
+  {
+    "stop": 17,
+    "heure": "06:09:37",
+    "type": "Livraison",
+    "adresse": "17 Rue Uranus, 13015",
+    "clients": [
+      {
+        "nom": "BACHER Nicole",
+        "n": "17",
+        "titres": [
+          "Provence",
+          "Télé 7 jours"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Vers Place Vénus",
+    "lat": 43.342409,
+    "lng": 5.3741952
+  },
+  {
+    "stop": 18,
+    "heure": "06:10:54",
+    "type": "Livraison",
+    "adresse": "7 Place Vénus, 13015",
+    "clients": [
+      {
+        "nom": "KARYDON Michel",
+        "n": "7",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Remonter vers Bd Simon Bolivar",
+    "lat": 43.3428458,
+    "lng": 5.3731904
+  },
+  {
+    "stop": 19,
+    "heure": "06:12:18",
+    "type": "Livraison",
+    "adresse": "8 Boulevard Simon Bolivar, 13015",
+    "clients": [
+      {
+        "nom": "TIRAN Gérard",
+        "n": "8",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Direction nord vers 14e",
+    "lat": 43.3428075,
+    "lng": 5.377938
+  },
+  {
+    "stop": 20,
+    "heure": "06:13:05",
+    "type": "Livraison",
+    "adresse": "9 Avenue de la Grognarde, 13014",
+    "clients": [
+      {
+        "nom": "LAGALY Jean Claude",
+        "n": "9",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Prendre Boulevard Central",
+    "lat": 43.3435,
+    "lng": 5.379
+  },
+  {
+    "stop": 21,
+    "heure": "06:14:29",
+    "type": "Livraison",
+    "adresse": "Boulevard Central (n°30-39), 13014",
+    "clients": [
+      {
+        "nom": "LIGOUSA Patricia",
+        "n": "30",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "GINESTE Bernard",
+        "n": "39",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Continuer Boulevard Central",
+    "lat": 43.3438,
+    "lng": 5.3795
+  },
+  {
+    "stop": 22,
+    "heure": "06:15:27",
+    "type": "Livraison",
+    "adresse": "Boulevard Central (n°45-46), 13014",
+    "clients": [
+      {
+        "nom": "COTOIA Christian",
+        "n": "45",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "JOSHUA Samuel",
+        "n": "46",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Tourner Place de la Rotonde",
+    "lat": 43.3438,
+    "lng": 5.3798
+  },
+  {
+    "stop": 23,
+    "heure": "06:16:34",
+    "type": "Livraison",
+    "adresse": "3 Place de la Rotonde, 13014",
+    "clients": [
+      {
+        "nom": "POMAROS Michel",
+        "n": "3",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Prendre Boulevard Massenet",
+    "lat": 43.3441581,
+    "lng": 5.3807096
+  },
+  {
+    "stop": 24,
+    "heure": "06:17:42",
+    "type": "Livraison",
+    "adresse": "Boulevard Massenet, 13014",
+    "clients": [
+      {
+        "nom": "FANTONE Jean-Marie",
+        "n": "7",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "GHIRARDI Gérard",
+        "n": "12",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Vers Boulevard Coli",
+    "lat": 43.341055,
+    "lng": 5.3803036
+  },
+  {
+    "stop": 25,
+    "heure": "06:19:45",
+    "type": "Livraison",
+    "adresse": "Boulevard Coli, 13014",
+    "clients": [
+      {
+        "nom": "SOFFIENTINO Gilbert",
+        "n": "4",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "GHIGINI Bernard",
+        "n": "6",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Prendre Boulevard Nungesser",
+    "lat": 43.3426474,
+    "lng": 5.3870659
+  },
+  {
+    "stop": 26,
+    "heure": "06:20:49",
+    "type": "Livraison",
+    "adresse": "17 Boulevard Nungesser, 13014",
+    "clients": [
+      {
+        "nom": "ZAPPALA Vincent",
+        "n": "17",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Remonter vers Boulevard Myères",
+    "lat": 43.3417679,
+    "lng": 5.3881622
+  },
+  {
+    "stop": 27,
+    "heure": "06:24:13",
+    "type": "Livraison",
+    "adresse": "6 Boulevard Myères, 13014",
+    "clients": [
+      {
+        "nom": "FAURE Sylvain",
+        "n": "6",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Prendre Boulevard Jean Bouin",
+    "lat": 43.3384527,
+    "lng": 5.3899227
+  },
+  {
+    "stop": 28,
+    "heure": "06:25:07",
+    "type": "Livraison",
+    "adresse": "15 Boulevard Jean Bouin, 13014",
+    "clients": [
+      {
+        "nom": "LISKE Eric",
+        "n": "15",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Même boulevard",
+    "lat": 43.33856,
+    "lng": 5.3909142
+  },
+  {
+    "stop": 29,
+    "heure": "06:25:41",
+    "type": "Livraison",
+    "adresse": "21 Boulevard Jean Bouin, 13014",
+    "clients": [
+      {
+        "nom": "BELTRAN Christian",
+        "n": "21",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Vers Chemin de Sainte-Marthe",
+    "lat": 43.33856,
+    "lng": 5.3909142
+  },
+  {
+    "stop": 30,
+    "heure": "06:26:46",
+    "type": "Livraison",
+    "adresse": "287 Chemin de Sainte-Marthe, 13014",
+    "clients": [
+      {
+        "nom": "VITALE Marcel",
+        "n": "287",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "Pl. Lt Albert Durand / Cercle St Marthe",
+        "n": "7/10",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7",
+        "note": "Place du Lt Albert Durand x2 + 10 Rue Berthelot (Cercle) x4"
+      }
+    ],
+    "direction_next": "Descendre Chemin Ste-Marthe",
+    "lat": 43.3229739,
+    "lng": 5.3894055
+  },
+  {
+    "stop": 31,
+    "heure": "06:27:43",
+    "type": "Livraison",
+    "adresse": "269/255 Chemin de Sainte-Marthe, 13014",
+    "clients": [
+      {
+        "nom": "ROUBAUD Daniel",
+        "n": "269",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "CORCE André",
+        "n": "255",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Prendre Boulevard Mouton",
+    "lat": 43.3245,
+    "lng": 5.39
+  },
+  {
+    "stop": 32,
+    "heure": "06:29:30",
+    "type": "Livraison",
+    "adresse": "54 Boulevard Mouton, 13014",
+    "clients": [
+      {
+        "nom": "PICCINOTTI Michelle",
+        "n": "54",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Vers Bd Alphonse Allais",
+    "lat": 43.3328817,
+    "lng": 5.3929578
+  },
+  {
+    "stop": 33,
+    "heure": "06:30:21",
+    "type": "Livraison",
+    "adresse": "2 Boulevard Alphonse Allais, 13014",
+    "clients": [
+      {
+        "nom": "GAGLIO Paul",
+        "n": "2",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Prendre Boulevard Jourdan",
+    "lat": 43.3409808,
+    "lng": 5.383609
+  },
+  {
+    "stop": 34,
+    "heure": "06:31:12",
+    "type": "Livraison",
+    "adresse": "12 Boulevard Jourdan, 13014",
+    "clients": [
+      {
+        "nom": "VERNET Jeanine",
+        "n": "12",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "5/7"
+      }
+    ],
+    "direction_next": "Vers zone Boulevard Caune / Étienne Dolet",
+    "lat": 43.3339525,
+    "lng": 5.3921027
+  },
+  {
+    "stop": 35,
+    "heure": "~06:32",
+    "type": "Livraison",
+    "adresse": "Boulevard Caune, 13014",
+    "clients": [
+      {
+        "nom": "DALLEMER Frédéric",
+        "n": "9",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "GRACIA Jeanine",
+        "n": "56",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Vers Rue Étienne Dolet",
+    "note": "MARFELA n°42 SUSPENDU depuis 29/03",
+    "lat": 43.3404887,
+    "lng": 5.3932125
+  },
+  {
+    "stop": 36,
+    "heure": "~06:33",
+    "type": "Livraison",
+    "adresse": "7 bis Rue Étienne Dolet, 13014",
+    "clients": [
+      {
+        "nom": "STEPANIAN Huberte",
+        "n": "7bis",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Vers Boulevard de Troyes",
+    "lat": 43.3385997,
+    "lng": 5.3946227
+  },
+  {
+    "stop": 37,
+    "heure": "~06:34",
+    "type": "Livraison",
+    "adresse": "4 Boulevard de Troyes, 13014",
+    "clients": [
+      {
+        "nom": "DEGGIARDINI Reno",
+        "n": "4",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Vers Boulevard de Compiègne",
+    "lat": 43.3416821,
+    "lng": 5.3977121
+  },
+  {
+    "stop": 38,
+    "heure": "~06:35",
+    "type": "Livraison",
+    "adresse": "17 Boulevard de Compiègne, 13014",
+    "clients": [
+      {
+        "nom": "MARONGIU Maria",
+        "n": "17",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Vers Impasse du Bois Chenu",
+    "lat": 43.3414898,
+    "lng": 5.3985417
+  },
+  {
+    "stop": 39,
+    "heure": "~06:36",
+    "type": "Livraison",
+    "adresse": "Impasse du Bois Chenu, 13014",
+    "clients": [
+      {
+        "nom": "BANOS Francis",
+        "n": "8",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "Client n°15",
+        "n": "15",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "Client n°27",
+        "n": "27",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Vers Traverse Sainte Jeanne",
+    "lat": 43.3412828,
+    "lng": 5.4004054
+  },
+  {
+    "stop": 40,
+    "heure": "~06:37",
+    "type": "Livraison",
+    "adresse": "Traverse Sainte Jeanne, 13014",
+    "clients": [
+      {
+        "nom": "MIDONIO Gérard",
+        "n": "15",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Vers Boulevard de Patay",
+    "note": "Cahier formateur mentionne GAUDIN n°3 mais la liste officielle donne MIDONIO n°15 Traverse Ste Jeanne et GAUDIN n°3 Impasse des Étoiles",
+    "lat": 43.3423274,
+    "lng": 5.39792
+  },
+  {
+    "stop": 41,
+    "heure": "06:34:59",
+    "type": "Livraison",
+    "adresse": "9 Boulevard de Patay, 13014",
+    "clients": [
+      {
+        "nom": "LEPETIT Odette",
+        "n": "9",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "3/7"
+      }
+    ],
+    "direction_next": "Prendre Chemin des Bessons",
+    "lat": 43.3417572,
+    "lng": 5.3989715
+  },
+  {
+    "stop": 42,
+    "heure": "06:37:14",
+    "type": "Livraison",
+    "adresse": "126B Chemin des Bessons, 13014",
+    "clients": [
+      {
+        "nom": "CHAPAL Denis",
+        "n": "126B",
+        "titres": [
+          "Libération"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Descendre Chemin des Bessons",
+    "lat": 43.3492502,
+    "lng": 5.3913756
+  },
+  {
+    "stop": 43,
+    "heure": "06:39:40",
+    "type": "Livraison",
+    "adresse": "9 Chemin des Bessons, 13014",
+    "clients": [
+      {
+        "nom": "RAPHAEL Georges",
+        "n": "9",
+        "titres": [
+          "La Marseillaise"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Vers Chemin des Carrières",
+    "lat": 43.34512,
+    "lng": 5.3911062
+  },
+  {
+    "stop": 44,
+    "heure": "06:41:25",
+    "type": "Livraison",
+    "adresse": "1 Chemin des Carrières, 13014",
+    "clients": [
+      {
+        "nom": "FATA Jacques",
+        "n": "1",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Même rue",
+    "lat": 43.3505729,
+    "lng": 5.3909252
+  },
+  {
+    "stop": 45,
+    "heure": "06:42:02",
+    "type": "Livraison",
+    "adresse": "11 Chemin des Carrières, 13014",
+    "clients": [
+      {
+        "nom": "FRANÇOIS Stéphane",
+        "n": "11",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Prendre Traverse de la Fontaine",
+    "lat": 43.3505729,
+    "lng": 5.3909252
+  },
+  {
+    "stop": 46,
+    "heure": "06:44:03",
+    "type": "Livraison",
+    "adresse": "39 Traverse de la Fontaine, 13014",
+    "clients": [
+      {
+        "nom": "VALAT Bernard",
+        "n": "39",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Continuer Traverse de la Fontaine",
+    "lat": 43.3496041,
+    "lng": 5.3939974
+  },
+  {
+    "stop": 47,
+    "heure": "06:45:02",
+    "type": "Livraison",
+    "adresse": "73 Traverse de la Fontaine, 13014",
+    "clients": [
+      {
+        "nom": "ALLEN Paul",
+        "n": "73",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Vers Chemin du Four de Buze",
+    "lat": 43.3495749,
+    "lng": 5.3972188
+  },
+  {
+    "stop": 48,
+    "heure": "06:46:43",
+    "type": "Livraison",
+    "adresse": "117 Chemin du Four de Buze, 13014",
+    "clients": [
+      {
+        "nom": "TERZO Marie Claude",
+        "n": "117",
+        "titres": [
+          "Le Figaro"
+        ],
+        "freq": "7/7",
+        "note": "SUSPENDU depuis 30/03/2026"
+      }
+    ],
+    "direction_next": "Vers Impasse des Petits Champs",
+    "note": "Vérifier si client toujours suspendu",
+    "lat": 43.3470358,
+    "lng": 5.3973529
+  },
+  {
+    "stop": 49,
+    "heure": "06:49:23",
+    "type": "Livraison",
+    "adresse": "38 Impasse des Petits Champs, 13014",
+    "clients": [
+      {
+        "nom": "GRIOT Roger Claire",
+        "n": "38",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Vers Impasse des Étoiles",
+    "lat": 43.3463848,
+    "lng": 5.3998728
+  },
+  {
+    "stop": 50,
+    "heure": "06:51:50",
+    "type": "Livraison",
+    "adresse": "Impasse des Étoiles, 13014",
+    "clients": [
+      {
+        "nom": "GAUDIN Maurice",
+        "n": "3",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      },
+      {
+        "nom": "PANICO Jean",
+        "n": "60",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Demi-tour (impasse), puis vers Avenue Raimu",
+    "lat": 43.3450549,
+    "lng": 5.3960961
+  },
+  {
+    "stop": 51,
+    "heure": "07:07:22",
+    "type": "Livraison",
+    "adresse": "Avenue Raimu, 13014",
+    "clients": [
+      {
+        "nom": "COLLÈGE MANET Edouard",
+        "n": "",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "5/7"
+      }
+    ],
+    "direction_next": "Vers Avenue Alexandre Ansaldi",
+    "lat": 43.3284762,
+    "lng": 5.3980178
+  },
+  {
+    "stop": 52,
+    "heure": "07:08:50",
+    "type": "Livraison",
+    "adresse": "81 Avenue Alexandre Ansaldi, 13014",
+    "clients": [
+      {
+        "nom": "DOMENECH Jean",
+        "n": "81",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Vers Traverse du Château Vento",
+    "lat": 43.3327925,
+    "lng": 5.4037719
+  },
+  {
+    "stop": 53,
+    "heure": "07:11:06",
+    "type": "Livraison",
+    "adresse": "42 Traverse du Château Vento, 13014",
+    "clients": [
+      {
+        "nom": "BOUALIA Mamma",
+        "n": "42",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Continuer Traverse Cade",
+    "lat": 43.3347,
+    "lng": 5.4005
+  },
+  {
+    "stop": 54,
+    "heure": "07:12:27",
+    "type": "Livraison",
+    "adresse": "49 Traverse Cade, 13014",
+    "clients": [
+      {
+        "nom": "ARRIGHI Georges",
+        "n": "49",
+        "titres": [
+          "La Marseillaise"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Vers Avenue du Merlan",
+    "lat": 43.3367188,
+    "lng": 5.3971568
+  },
+  {
+    "stop": 55,
+    "heure": "07:14:21",
+    "type": "Livraison",
+    "adresse": "4 Avenue du Merlan, 13014",
+    "clients": [
+      {
+        "nom": "FIORENTINO Joseph",
+        "n": "4",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Vers Boulevard de Corfou",
+    "lat": 43.3445369,
+    "lng": 5.4083373
+  },
+  {
+    "stop": 56,
+    "heure": "07:15:37",
+    "type": "Livraison",
+    "adresse": "9 Boulevard de Corfou, 13014",
+    "clients": [
+      {
+        "nom": "ARRIGHI Georges (2e point)",
+        "n": "9",
+        "titres": [
+          "La Marseillaise"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "FIN DE TOURNÉE",
+    "lat": 43.3386372,
+    "lng": 5.3963005
+  }
+]
