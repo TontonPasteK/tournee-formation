@@ -1,1340 +1,776 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#0a0f1e" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>Tournée Formation</title>
-  <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Barlow:wght@300;400;600;800&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --bg: #0a0f1e;
-      --bg2: #111827;
-      --card: #161f35;
-      --border: #1e2d4a;
-      --accent: #00d4ff;
-      --accent2: #ff6b35;
-      --danger: #ff3b5c;
-      --success: #00e676;
-      --warn: #ffab00;
-      --text: #e8f0fe;
-      --muted: #6b7db3;
-      --rec: #ff3b5c;
-    }
-
-    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
-    body {
-      font-family: 'Barlow', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      height: 100dvh;
-      overflow: hidden;
-      user-select: none;
-    }
-
-    /* ═══════════════════════════════════════
-       ÉCRANS
-    ═══════════════════════════════════════ */
-    .screen {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.3s ease;
-    }
-    .screen.active {
-      opacity: 1;
-      pointer-events: all;
-    }
-
-    /* ═══════════════════════════════════════
-       ÉCRAN 1 — ACCUEIL
-    ═══════════════════════════════════════ */
-    #screen-home {
-      justify-content: center;
-      align-items: center;
-      padding: 24px;
-      background: radial-gradient(ellipse at 50% 0%, #0d2040 0%, var(--bg) 70%);
-    }
-
-    .home-logo {
-      font-family: 'Space Mono', monospace;
-      font-size: 11px;
-      letter-spacing: 4px;
-      color: var(--accent);
-      text-transform: uppercase;
-      margin-bottom: 8px;
-      opacity: 0.7;
-    }
-
-    .home-title {
-      font-size: 32px;
-      font-weight: 800;
-      color: var(--text);
-      text-align: center;
-      line-height: 1.1;
-      margin-bottom: 40px;
-    }
-
-    .home-title span { color: var(--accent); }
-
-    .mode-cards {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      width: 100%;
-      max-width: 380px;
-    }
-
-    .mode-card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 20px 24px;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .mode-card:active { transform: scale(0.97); }
-
-    .mode-card.primary {
-      border-color: var(--accent);
-      background: linear-gradient(135deg, #0d2a3d 0%, var(--card) 100%);
-    }
-
-    .mode-card.secondary {
-      border-color: var(--accent2);
-      background: linear-gradient(135deg, #2a1a0d 0%, var(--card) 100%);
-    }
-
-    .mode-icon {
-      font-size: 36px;
-      flex-shrink: 0;
-    }
-
-    .mode-info h3 {
-      font-size: 18px;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-
-    .mode-card.primary h3 { color: var(--accent); }
-    .mode-card.secondary h3 { color: var(--accent2); }
-
-    .mode-info p {
-      font-size: 13px;
-      color: var(--muted);
-      line-height: 1.4;
-    }
-
-    /* ═══════════════════════════════════════
-       ÉCRAN 2 — ENREGISTREMENT
-    ═══════════════════════════════════════ */
-    #screen-record {
-      background: var(--bg);
-    }
-
-    .rec-header {
-      background: var(--bg2);
-      border-bottom: 1px solid var(--border);
-      padding: 12px 16px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-shrink: 0;
-      gap: 8px;
-    }
-
-    .rec-badge {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-family: 'Space Mono', monospace;
-      font-size: 12px;
-    }
-
-    .rec-dot {
-      width: 10px; height: 10px;
-      border-radius: 50%;
-      background: var(--rec);
-      animation: pulse-rec 1s infinite;
-    }
-
-    @keyframes pulse-rec {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
-    }
-
-    .rec-dot.paused { animation: none; background: var(--warn); }
-
-    .rec-timer {
-      font-family: 'Space Mono', monospace;
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--accent);
-      letter-spacing: 2px;
-    }
-
-    .rec-stops-count {
-      font-size: 13px;
-      color: var(--muted);
-      font-family: 'Space Mono', monospace;
-    }
-
-    #rec-map {
-      flex: 1;
-      min-height: 0;
-    }
-
-    .rec-bottom {
-      background: var(--bg2);
-      border-top: 1px solid var(--border);
-      padding: 12px 16px 20px;
-      flex-shrink: 0;
-    }
-
-    .rec-stop-info {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 14px;
-      margin-bottom: 12px;
-      font-size: 13px;
-      color: var(--muted);
-      min-height: 40px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .rec-stop-info.active-stop {
-      border-color: var(--success);
-      color: var(--success);
-    }
-
-    .rec-buttons {
-      display: flex;
-      gap: 10px;
-    }
-
-    .btn {
-      border: none;
-      border-radius: 12px;
-      font-family: 'Barlow', sans-serif;
-      font-weight: 700;
-      font-size: 15px;
-      cursor: pointer;
-      transition: all 0.15s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-    }
-
-    .btn:active { transform: scale(0.95); }
-
-    .btn-pause {
-      background: var(--warn);
-      color: #000;
-      padding: 14px 18px;
-      flex-shrink: 0;
-      border-radius: 12px;
-    }
-
-    .btn-note {
-      background: var(--card);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 14px 18px;
-      flex-shrink: 0;
-    }
-
-    .btn-stop {
-      background: var(--danger);
-      color: #fff;
-      padding: 14px 20px;
-      flex: 1;
-    }
-
-    /* ═══════════════════════════════════════
-       ÉCRAN 2b — SETUP ENREGISTREMENT
-    ═══════════════════════════════════════ */
-    #screen-setup {
-      justify-content: center;
-      align-items: center;
-      padding: 24px;
-      background: radial-gradient(ellipse at 50% 0%, #0d2040 0%, var(--bg) 70%);
-    }
-
-    .setup-box {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 28px 24px;
-      width: 100%;
-      max-width: 380px;
-    }
-
-    .setup-title {
-      font-size: 20px;
-      font-weight: 700;
-      margin-bottom: 6px;
-      color: var(--accent);
-    }
-
-    .setup-sub {
-      font-size: 13px;
-      color: var(--muted);
-      margin-bottom: 24px;
-    }
-
-    .field-label {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 6px;
-    }
-
-    .field-input {
-      width: 100%;
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px 14px;
-      color: var(--text);
-      font-family: 'Barlow', sans-serif;
-      font-size: 16px;
-      margin-bottom: 20px;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-
-    .field-input:focus { border-color: var(--accent); }
-
-    .btn-launch {
-      width: 100%;
-      background: var(--accent);
-      color: #000;
-      padding: 18px;
-      font-size: 17px;
-      font-weight: 800;
-      border-radius: 14px;
-      border: none;
-      cursor: pointer;
-      transition: all 0.15s;
-      letter-spacing: 1px;
-    }
-
-    .btn-launch:active { transform: scale(0.97); }
-
-    .btn-back {
-      width: 100%;
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      padding: 14px;
-      font-size: 14px;
-      font-weight: 600;
-      border-radius: 12px;
-      cursor: pointer;
-      margin-top: 10px;
-    }
-
-    /* ═══════════════════════════════════════
-       ÉCRAN 3 — FINALISATION
-    ═══════════════════════════════════════ */
-    #screen-finalize {
-      justify-content: center;
-      align-items: center;
-      padding: 24px;
-      background: radial-gradient(ellipse at 50% 100%, #0d2a1a 0%, var(--bg) 70%);
-    }
-
-    .finalize-box {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 28px 24px;
-      width: 100%;
-      max-width: 380px;
-      text-align: center;
-    }
-
-    .finalize-icon { font-size: 52px; margin-bottom: 16px; }
-
-    .finalize-title {
-      font-size: 22px;
-      font-weight: 800;
-      color: var(--success);
-      margin-bottom: 8px;
-    }
-
-    .finalize-stats {
-      display: flex;
-      justify-content: center;
-      gap: 24px;
-      margin: 20px 0;
-    }
-
-    .stat-item { text-align: center; }
-
-    .stat-val {
-      font-family: 'Space Mono', monospace;
-      font-size: 22px;
-      font-weight: 700;
-      color: var(--accent);
-    }
-
-    .stat-lbl {
-      font-size: 11px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-
-    .progress-bar-wrap {
-      background: var(--bg2);
-      border-radius: 8px;
-      height: 8px;
-      margin: 16px 0;
-      overflow: hidden;
-    }
-
-    .progress-bar-fill {
-      height: 100%;
-      background: linear-gradient(90deg, var(--accent), var(--success));
-      border-radius: 8px;
-      transition: width 0.3s ease;
-      width: 0%;
-    }
-
-    .progress-label {
-      font-size: 13px;
-      color: var(--muted);
-      margin-bottom: 20px;
-    }
-
-    .btn-finalize {
-      width: 100%;
-      background: var(--success);
-      color: #000;
-      padding: 18px;
-      font-size: 17px;
-      font-weight: 800;
-      border-radius: 14px;
-      border: none;
-      cursor: pointer;
-      margin-bottom: 10px;
-      transition: all 0.15s;
-    }
-
-    .btn-finalize:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    /* ═══════════════════════════════════════
-       ÉCRAN 4 — GESTION TOURNÉES
-    ═══════════════════════════════════════ */
-    #screen-manage {
-      background: var(--bg);
-    }
-
-    .manage-header {
-      background: var(--bg2);
-      border-bottom: 1px solid var(--border);
-      padding: 16px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-shrink: 0;
-    }
-
-    .manage-header h2 {
-      font-size: 18px;
-      font-weight: 700;
-      flex: 1;
-    }
-
-    .btn-icon {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      width: 42px; height: 42px;
-      font-size: 20px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.15s;
-      flex-shrink: 0;
-    }
-
-    .btn-icon:active { transform: scale(0.92); }
-
-    .manage-list {
-      flex: 1;
-      overflow-y: auto;
-      padding: 16px;
-    }
-
-    .tournee-card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 16px;
-      margin-bottom: 12px;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-
-    .tournee-card:active { transform: scale(0.98); }
-    .tournee-card:hover { border-color: var(--accent2); }
-
-    .tc-icon { font-size: 28px; flex-shrink: 0; }
-
-    .tc-info { flex: 1; min-width: 0; }
-
-    .tc-name {
-      font-size: 16px;
-      font-weight: 700;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .tc-meta {
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 3px;
-      font-family: 'Space Mono', monospace;
-    }
-
-    .tc-actions {
-      display: flex;
-      gap: 8px;
-    }
-
-    .tc-btn {
-      background: transparent;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 6px 10px;
-      font-size: 16px;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-
-    .tc-btn:active { transform: scale(0.9); }
-    .tc-btn.play { border-color: var(--accent2); }
-    .tc-btn.edit { border-color: var(--accent); }
-    .tc-btn.del { border-color: var(--danger); }
-
-    .empty-state {
-      text-align: center;
-      padding: 60px 20px;
-      color: var(--muted);
-    }
-
-    .empty-state .empty-icon { font-size: 52px; margin-bottom: 16px; }
-    .empty-state p { font-size: 15px; line-height: 1.5; }
-
-    /* ═══════════════════════════════════════
-       ÉCRAN 5 — NAVIGATION GUIDÉE
-    ═══════════════════════════════════════ */
-    #screen-nav {
-      background: var(--bg);
-    }
-
-    .nav-header {
-      background: var(--bg2);
-      border-bottom: 1px solid var(--border);
-      padding: 10px 16px;
-      flex-shrink: 0;
-    }
-
-    .nav-title-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 6px;
-    }
-
-    .nav-tournee-name {
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--accent2);
-    }
-
-    .nav-progress {
-      font-family: 'Space Mono', monospace;
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    .nav-next-stop {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 14px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .nav-next-icon { font-size: 20px; flex-shrink: 0; }
-
-    .nav-next-info { flex: 1; }
-
-    .nav-next-name {
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--text);
-    }
-
-    .nav-next-dist {
-      font-size: 12px;
-      color: var(--muted);
-      font-family: 'Space Mono', monospace;
-    }
-
-    #nav-map { flex: 1; min-height: 0; }
-
-    .nav-bottom {
-      background: var(--bg2);
-      border-top: 1px solid var(--border);
-      padding: 12px 16px 20px;
-      flex-shrink: 0;
-    }
-
-    .nav-instruction {
-      background: var(--card);
-      border-left: 3px solid var(--accent2);
-      border-radius: 0 10px 10px 0;
-      padding: 10px 14px;
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text);
-      margin-bottom: 12px;
-      min-height: 42px;
-      display: flex;
-      align-items: center;
-    }
-
-    .nav-controls {
-      display: flex;
-      gap: 10px;
-    }
-
-    .btn-nav-stop {
-      background: var(--danger);
-      color: #fff;
-      padding: 14px 20px;
-      flex: 1;
-      border-radius: 12px;
-      border: none;
-      font-family: 'Barlow', sans-serif;
-      font-weight: 700;
-      font-size: 15px;
-      cursor: pointer;
-    }
-
-    .btn-repeat {
-      background: var(--card);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 14px 18px;
-      border-radius: 12px;
-      border-width: 1px;
-      font-size: 20px;
-      cursor: pointer;
-      flex-shrink: 0;
-      font-family: inherit;
-    }
-
-    /* ═══════════════════════════════════════
-       ÉCRAN 6 — ÉDITION TOURNÉE
-    ═══════════════════════════════════════ */
-    #screen-edit {
-      background: var(--bg);
-    }
-
-    .edit-header {
-      background: var(--bg2);
-      border-bottom: 1px solid var(--border);
-      padding: 16px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-shrink: 0;
-    }
-
-    .edit-header h2 {
-      font-size: 16px;
-      font-weight: 700;
-      flex: 1;
-    }
-
-    .edit-list {
-      flex: 1;
-      overflow-y: auto;
-      padding: 16px;
-    }
-
-    .edit-stop-card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 14px;
-      margin-bottom: 10px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      transition: all 0.2s;
-    }
-
-    .edit-stop-card.deleted {
-      opacity: 0.3;
-      border-color: var(--danger);
-      text-decoration: line-through;
-    }
-
-    .stop-num {
-      font-family: 'Space Mono', monospace;
-      font-size: 11px;
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 4px 8px;
-      color: var(--muted);
-      flex-shrink: 0;
-    }
-
-    .stop-edit-info { flex: 1; min-width: 0; }
-
-    .stop-edit-name {
-      font-size: 14px;
-      font-weight: 600;
-      background: transparent;
-      border: none;
-      border-bottom: 1px solid var(--border);
-      color: var(--text);
-      font-family: 'Barlow', sans-serif;
-      width: 100%;
-      padding: 2px 0;
-      outline: none;
-    }
-
-    .stop-edit-name:focus { border-bottom-color: var(--accent); }
-
-    .stop-edit-time {
-      font-size: 11px;
-      color: var(--muted);
-      font-family: 'Space Mono', monospace;
-      margin-top: 3px;
-    }
-
-    .stop-del-btn {
-      background: transparent;
-      border: 1px solid var(--danger);
-      border-radius: 8px;
-      color: var(--danger);
-      padding: 6px 10px;
-      font-size: 16px;
-      cursor: pointer;
-      flex-shrink: 0;
-    }
-
-    .edit-bottom {
-      padding: 16px;
-      background: var(--bg2);
-      border-top: 1px solid var(--border);
-      flex-shrink: 0;
-    }
-
-    .btn-save-tournee {
-      width: 100%;
-      background: var(--accent);
-      color: #000;
-      padding: 18px;
-      font-size: 17px;
-      font-weight: 800;
-      border-radius: 14px;
-      border: none;
-      cursor: pointer;
-    }
-
-    /* ═══════════════════════════════════════
-       MODALES
-    ═══════════════════════════════════════ */
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.7);
-      display: flex;
-      align-items: flex-end;
-      z-index: 1000;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.2s;
-    }
-
-    .modal-overlay.open {
-      opacity: 1;
-      pointer-events: all;
-    }
-
-    .modal-box {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 20px 20px 0 0;
-      padding: 24px;
-      width: 100%;
-      transform: translateY(100%);
-      transition: transform 0.3s ease;
-    }
-
-    .modal-overlay.open .modal-box { transform: translateY(0); }
-
-    .modal-title {
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--accent);
-      margin-bottom: 16px;
-    }
-
-    /* Onglets texte / vocal */
-    .note-tabs {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 14px;
-    }
-    .note-tab {
-      flex: 1;
-      padding: 10px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: var(--bg2);
-      color: var(--muted);
-      font-family: 'Barlow', sans-serif;
-      font-weight: 600;
-      font-size: 14px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .note-tab.active {
-      background: var(--accent);
-      color: #000;
-      border-color: var(--accent);
-    }
-
-    /* Panel vocal */
-    .voice-note-box {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 14px;
-      padding: 10px 0 6px;
-    }
-    .btn-voice-record {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-      background: var(--bg2);
-      border: 2px solid var(--border);
-      border-radius: 16px;
-      padding: 18px 30px;
-      width: 100%;
-      cursor: pointer;
-      transition: all 0.2s;
-      font-family: 'Barlow', sans-serif;
-    }
-    .btn-voice-record.listening {
-      background: rgba(255, 50, 50, 0.15);
-      border-color: var(--danger);
-      animation: pulse-voice 1.2s infinite;
-    }
-    @keyframes pulse-voice {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(255,50,50,0.4); }
-      50% { box-shadow: 0 0 0 10px rgba(255,50,50,0); }
-    }
-    .voice-icon { font-size: 32px; }
-    #voice-rec-label {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text);
-    }
-    .btn-voice-record.listening #voice-rec-label {
-      color: var(--danger);
-    }
-    .voice-transcript {
-      width: 100%;
-      min-height: 52px;
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 12px;
-      color: var(--text);
-      font-size: 14px;
-      font-style: italic;
-      text-align: center;
-    }
-    .voice-hint {
-      font-size: 12px;
-      color: var(--muted);
-      text-align: center;
-    }
-
-    .modal-textarea {
-      width: 100%;
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px 14px;
-      color: var(--text);
-      font-family: 'Barlow', sans-serif;
-      font-size: 15px;
-      resize: none;
-      height: 100px;
-      outline: none;
-      margin-bottom: 16px;
-    }
-
-    .modal-textarea:focus { border-color: var(--accent); }
-
-    .modal-btns { display: flex; gap: 10px; margin-top: 14px; }
-
-    .btn-modal-cancel {
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      color: var(--muted);
-      padding: 14px 20px;
-      border-radius: 12px;
-      font-family: 'Barlow', sans-serif;
-      font-weight: 600;
-      font-size: 15px;
-      cursor: pointer;
-      flex-shrink: 0;
-    }
-
-    .btn-modal-ok {
-      background: var(--accent);
-      border: none;
-      color: #000;
-      padding: 14px 20px;
-      border-radius: 12px;
-      font-family: 'Barlow', sans-serif;
-      font-weight: 800;
-      font-size: 15px;
-      cursor: pointer;
-      flex: 1;
-    }
-
-    /* ═══════════════════════════════════════
-       TOAST
-    ═══════════════════════════════════════ */
-    .toast {
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%) translateY(-80px);
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 30px;
-      padding: 12px 20px;
-      font-size: 14px;
-      font-weight: 600;
-      z-index: 2000;
-      transition: transform 0.3s ease;
-      white-space: nowrap;
-      pointer-events: none;
-    }
-
-    .toast.show { transform: translateX(-50%) translateY(0); }
-    .toast.success { border-color: var(--success); color: var(--success); }
-    .toast.warn { border-color: var(--warn); color: var(--warn); }
-    .toast.danger { border-color: var(--danger); color: var(--danger); }
-
-    /* Bandeau confirmation rapide arrêts courts */
-    #confirm-bar {
-      display: none;
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      z-index: 500;
-      background: rgba(10,15,30,0.96);
-      border-bottom: 2px solid var(--accent2);
-      padding: 10px 16px;
-      flex-direction: row;
-      align-items: center;
-      gap: 10px;
-    }
-    #confirm-bar.visible { display: flex; }
-    .confirm-text { flex: 1; font-size: 14px; font-weight: 700; color: var(--text); }
-    .confirm-btn {
-      padding: 10px 18px; border-radius: 10px; border: none;
-      font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.15s;
-    }
-    .confirm-btn.yes { background: var(--success); color: #000; }
-    .confirm-btn.no  { background: var(--card); color: var(--muted); border: 1px solid var(--border); }
-    .confirm-btn:active { transform: scale(0.95); }
-    .confirm-countdown-wrap { font-size: 12px; color: var(--muted); min-width: 40px; text-align: right; }
-
-    /* Champ instruction manœuvre dans l'édition */
-    .stop-edit-maneuver {
-      width: 100%;
-      background: rgba(255,107,53,0.08);
-      border: 1px solid rgba(255,107,53,0.3);
-      border-radius: 8px;
-      padding: 8px 10px;
-      color: var(--text);
-      font-family: 'Barlow', sans-serif;
-      font-size: 13px;
-      margin-top: 4px;
-      outline: none;
-    }
-    .stop-edit-maneuver::placeholder { color: var(--muted); }
-    .stop-edit-maneuver:focus { border-color: var(--accent2); }
-
-    /* Arrêt en cours — indicateur sur la carte */
-    .stop-marker-active {
-      width: 20px; height: 20px;
-      background: var(--success);
-      border: 3px solid #fff;
-      border-radius: 50%;
-      box-shadow: 0 0 12px var(--success);
-    }
-
-    .stop-marker {
-      width: 14px; height: 14px;
-      background: var(--accent2);
-      border: 2px solid #fff;
-      border-radius: 50%;
-    }
-
-    .pos-marker {
-      width: 16px; height: 16px;
-      background: var(--accent);
-      border: 3px solid #fff;
-      border-radius: 50%;
-      box-shadow: 0 0 16px var(--accent);
-    }
-
-    /* Affichage proximité navigation */
-    .nav-proximity {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 500;
-      pointer-events: none;
-      font-family: 'Space Mono', monospace;
-      font-size: 64px;
-      font-weight: 700;
-      color: var(--accent2);
-      text-shadow: 0 0 30px rgba(255,107,53,0.5);
-      opacity: 0;
-      transition: opacity 0.3s;
-    }
-    .nav-proximity.near { opacity: 1; }
-
-        /* Leaflet dark override */
-    .leaflet-tile { filter: brightness(0.7) saturate(0.6); }
-    .leaflet-container { background: #0a0f1e; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0e17">
+<title>Tournée Fred 14e</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg: #0a0e17;
+  --bg2: #131a2b;
+  --bg3: #1a2340;
+  --accent: #00e5a0;
+  --accent2: #00b8ff;
+  --text: #e8ecf4;
+  --text2: #8a94a8;
+  --danger: #ff4757;
+  --warning: #ffa502;
+  --card: rgba(19,26,43,0.95);
+  --radius: 14px;
+}
+html, body { 
+  height:100%; width:100%; overflow:hidden; 
+  background:var(--bg); color:var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* ===== SCREENS ===== */
+.screen { display:none; position:absolute; inset:0; z-index:1; }
+.screen.active { display:flex; flex-direction:column; }
+
+/* ===== HOME SCREEN ===== */
+#homeScreen {
+  background: linear-gradient(160deg, #0a0e17 0%, #131a2b 50%, #0f1926 100%);
+  align-items: center; justify-content: center; gap: 24px; padding: 32px;
+}
+.home-title {
+  font-size: 28px; font-weight: 800; letter-spacing: -0.5px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.home-subtitle { color: var(--text2); font-size: 14px; text-align: center; line-height: 1.5; }
+.home-stats {
+  display: flex; gap: 16px; margin: 12px 0;
+}
+.stat-box {
+  background: var(--bg2); border-radius: var(--radius); padding: 16px 20px;
+  text-align: center; min-width: 90px;
+}
+.stat-num { font-size: 28px; font-weight: 800; color: var(--accent); }
+.stat-label { font-size: 11px; color: var(--text2); margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
+
+.btn-start {
+  width: 100%; max-width: 320px; padding: 18px; border: none; border-radius: var(--radius);
+  background: linear-gradient(135deg, var(--accent), #00c48c);
+  color: #0a0e17; font-size: 18px; font-weight: 800; cursor: pointer;
+  text-transform: uppercase; letter-spacing: 1px;
+  box-shadow: 0 4px 24px rgba(0,229,160,0.3);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.btn-start:active { transform: scale(0.97); box-shadow: 0 2px 12px rgba(0,229,160,0.2); }
+
+.btn-load {
+  width: 100%; max-width: 320px; padding: 14px; border: 2px solid var(--bg3); border-radius: var(--radius);
+  background: transparent; color: var(--text2); font-size: 14px; cursor: pointer;
+}
+
+/* ===== MAP SCREEN ===== */
+#mapScreen { background: var(--bg); }
+#map { flex: 1; z-index: 1; }
+
+/* Top bar */
+.top-bar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 1000;
+  background: linear-gradient(180deg, rgba(10,14,23,0.95) 0%, rgba(10,14,23,0.7) 80%, transparent 100%);
+  padding: 12px 16px 24px; pointer-events: none;
+}
+.top-bar > * { pointer-events: auto; }
+.progress-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+}
+.progress-text { font-size: 12px; color: var(--text2); white-space: nowrap; font-weight: 600; }
+.progress-bar {
+  flex: 1; height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden;
+}
+.progress-fill {
+  height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 3px; transition: width 0.5s ease;
+}
+
+/* Direction banner */
+.direction-banner {
+  background: var(--card); border-radius: var(--radius); padding: 14px 16px;
+  backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.06);
+}
+.direction-arrow { font-size: 20px; margin-right: 8px; }
+.direction-text { font-size: 15px; font-weight: 600; line-height: 1.4; }
+
+/* Bottom panel */
+.bottom-panel {
+  position: absolute; bottom: 0; left: 0; right: 0; z-index: 1000;
+  padding: 0 12px 16px; pointer-events: none;
+}
+.bottom-panel > * { pointer-events: auto; }
+
+.stop-card {
+  background: var(--card); border-radius: var(--radius); padding: 16px;
+  backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: 10px;
+}
+.stop-header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.stop-number {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #0a0e17; font-weight: 800; font-size: 16px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.stop-addr { font-size: 14px; font-weight: 600; line-height: 1.3; flex: 1; }
+.stop-dist {
+  font-size: 12px; color: var(--accent); font-weight: 700;
+  background: rgba(0,229,160,0.1); padding: 4px 10px; border-radius: 20px;
+  white-space: nowrap;
+}
+
+.client-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 0;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+.client-name { font-size: 14px; font-weight: 600; flex: 1; }
+.client-box {
+  font-size: 11px; color: var(--text2); background: var(--bg3);
+  padding: 2px 8px; border-radius: 6px;
+}
+.client-papers {
+  display: flex; gap: 4px; flex-wrap: wrap;
+}
+.paper-tag {
+  font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px;
+  white-space: nowrap;
+}
+.paper-provence { background: rgba(0,184,255,0.15); color: #00b8ff; }
+.paper-monde { background: rgba(255,165,2,0.15); color: #ffa502; }
+.paper-marseillaise { background: rgba(255,71,87,0.15); color: #ff4757; }
+.paper-liberation { background: rgba(255,71,87,0.15); color: #ff6b81; }
+.paper-figaro { background: rgba(0,229,160,0.15); color: #00e5a0; }
+.paper-tele7 { background: rgba(165,94,234,0.15); color: #a55eea; }
+.paper-other { background: rgba(255,255,255,0.08); color: var(--text2); }
+
+.client-note {
+  font-size: 12px; color: var(--warning); margin-top: 4px; font-style: italic;
+}
+.client-suspended {
+  opacity: 0.4; text-decoration: line-through;
+}
+
+.prep-info {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  background: rgba(0,229,160,0.08); border-radius: 10px; margin-bottom: 8px;
+}
+.prep-icon { font-size: 20px; }
+.prep-text { font-size: 13px; color: var(--accent); font-weight: 600; }
+
+.btn-row { display: flex; gap: 10px; }
+.btn-validate {
+  flex: 1; padding: 16px; border: none; border-radius: var(--radius);
+  background: linear-gradient(135deg, var(--accent), #00c48c);
+  color: #0a0e17; font-size: 16px; font-weight: 800; cursor: pointer;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.btn-validate:active { transform: scale(0.97); }
+.btn-skip {
+  padding: 16px 20px; border: 2px solid var(--bg3); border-radius: var(--radius);
+  background: transparent; color: var(--text2); font-size: 14px; cursor: pointer;
+}
+.btn-skip:active { background: var(--bg3); }
+
+.btn-sound {
+  position: absolute; top: 12px; right: 16px; z-index: 1001;
+  width: 44px; height: 44px; border-radius: 50%;
+  background: var(--card); border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text); font-size: 20px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(12px);
+}
+
+.btn-center {
+  position: absolute; bottom: 200px; right: 12px; z-index: 1000;
+  width: 44px; height: 44px; border-radius: 50%;
+  background: var(--card); border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text); font-size: 20px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(12px);
+}
+
+/* ===== FINISH SCREEN ===== */
+#finishScreen {
+  background: linear-gradient(160deg, #0a0e17 0%, #131a2b 50%, #0f1926 100%);
+  align-items: center; justify-content: center; gap: 20px; padding: 32px;
+}
+.finish-icon { font-size: 64px; }
+.finish-title { font-size: 24px; font-weight: 800; color: var(--accent); }
+.finish-stat { font-size: 14px; color: var(--text2); }
+.btn-restart {
+  padding: 16px 40px; border: none; border-radius: var(--radius);
+  background: var(--bg3); color: var(--text); font-size: 16px; font-weight: 700; cursor: pointer;
+}
+
+/* Leaflet dark tiles */
+.leaflet-tile-pane { filter: brightness(0.85) contrast(1.1); }
+.leaflet-control-attribution { display: none !important; }
+.leaflet-control-zoom { display: none !important; }
+
+/* Pulse animation for current position */
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+/* Toast */
+.toast {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  background: var(--card); color: var(--text); padding: 16px 28px;
+  border-radius: var(--radius); font-size: 16px; font-weight: 700;
+  z-index: 9999; backdrop-filter: blur(12px);
+  border: 1px solid rgba(0,229,160,0.3);
+  animation: toastIn 0.3s ease;
+  pointer-events: none;
+}
+@keyframes toastIn {
+  from { opacity:0; transform: translate(-50%,-50%) scale(0.9); }
+  to { opacity:1; transform: translate(-50%,-50%) scale(1); }
+}
+
+/* Scrollable stop card */
+.stop-clients {
+  max-height: 180px; overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.stop-clients::-webkit-scrollbar { width: 3px; }
+.stop-clients::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 3px; }
+</style>
 </head>
 <body>
 
-<!-- ══════════════════════════════════════════════
-     ÉCRAN 1 — ACCUEIL
-══════════════════════════════════════════════ -->
-<div id="screen-home" class="screen active">
-  <div class="home-logo">🚐 Porteur Pro</div>
-  <div class="home-title">Tournée<br><span>Formation</span></div>
-  <div class="mode-cards">
-    <div class="mode-card primary" onclick="showScreen('screen-setup')">
-      <div class="mode-icon">🔴</div>
-      <div class="mode-info">
-        <h3>Enregistrer une tournée</h3>
-        <p>Avec le formateur — GPS + audio continu + arrêts automatiques</p>
-      </div>
+<!-- HOME SCREEN -->
+<div id="homeScreen" class="screen active">
+  <div class="home-title">🗞️ Tournée Fred 14e</div>
+  <div class="home-subtitle">Guidage de livraison — 14e/15e Marseille<br>Données complètes intégrées</div>
+  <div class="home-stats">
+    <div class="stat-box"><div class="stat-num" id="statStops">57</div><div class="stat-label">Arrêts</div></div>
+    <div class="stat-box"><div class="stat-num" id="statClients">81</div><div class="stat-label">Clients</div></div>
+    <div class="stat-box"><div class="stat-num" id="statPapers">85</div><div class="stat-label">Journaux</div></div>
+  </div>
+  <button class="btn-start" onclick="startTournee()">▶ Démarrer la tournée</button>
+  <button class="btn-load" onclick="document.getElementById('fileInput').click()">📂 Charger un autre fichier</button>
+  <input type="file" id="fileInput" accept=".json,.tournee" style="display:none" onchange="loadFile(event)">
+</div>
+
+<!-- MAP SCREEN -->
+<div id="mapScreen" class="screen">
+  <div id="map"></div>
+  
+  <div class="top-bar">
+    <div class="progress-row">
+      <span class="progress-text" id="progressText">0 / 57</span>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
     </div>
-    <div class="mode-card secondary" onclick="showScreen('screen-manage')">
-      <div class="mode-icon">🗺️</div>
-      <div class="mode-info">
-        <h3>Mes tournées</h3>
-        <p>Naviguer, réviser ou charger une tournée existante</p>
-      </div>
+    <div class="direction-banner" id="dirBanner">
+      <span class="direction-arrow" id="dirArrow">➡️</span>
+      <span class="direction-text" id="dirText">Chargement...</span>
     </div>
-    <div class="mode-card" onclick="showScreen('screen-settings')" style="border-color:rgba(255,255,255,0.1)">
-      <div class="mode-icon">⚙️</div>
-      <div class="mode-info">
-        <h3>Réglages</h3>
-        <p>Clé API Groq pour la transcription audio</p>
+  </div>
+
+  <button class="btn-sound" id="btnSound" onclick="toggleSound()">🔊</button>
+  <button class="btn-center" onclick="centerOnUser()">📍</button>
+
+  <div class="bottom-panel">
+    <div class="stop-card" id="stopCard">
+      <div class="prep-info" id="prepInfo">
+        <span class="prep-icon">📰</span>
+        <span class="prep-text" id="prepText">Préparez 3 journaux</span>
       </div>
+      <div class="stop-header">
+        <div class="stop-number" id="stopNum">0</div>
+        <div class="stop-addr" id="stopAddr">...</div>
+        <div class="stop-dist" id="stopDist">--</div>
+      </div>
+      <div class="stop-clients" id="stopClients"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-validate" id="btnValidate" onclick="validateStop()">✅ ARRÊT LIVRÉ</button>
+      <button class="btn-skip" onclick="skipStop()">⏭️</button>
     </div>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════
-     ÉCRAN 2 — SETUP
-══════════════════════════════════════════════ -->
-<div id="screen-setup" class="screen">
-  <div style="flex:1; display:flex; align-items:center; justify-content:center; padding:24px; background:radial-gradient(ellipse at 50% 0%, #0d2040 0%, var(--bg) 70%)">
-    <div class="setup-box">
-      <div class="setup-title">🚀 Nouvelle tournée</div>
-      <div class="setup-sub">Remplis les infos puis démarre quand vous êtes prêts</div>
-      <div class="field-label">Nom de la tournée</div>
-      <input id="setup-name" class="field-input" type="text" placeholder="Ex: Tournée 13007 Centre" />
-      <div class="field-label">Ton prénom</div>
-      <input id="setup-porteur" class="field-input" type="text" placeholder="Ex: Karim" />
-      <button class="btn-launch" onclick="startRecording()">🔴 DÉMARRER</button>
-      <button class="btn-back" onclick="showScreen('screen-home')">← Retour</button>
-    </div>
-  </div>
+<!-- FINISH SCREEN -->
+<div id="finishScreen" class="screen">
+  <div class="finish-icon">🎉</div>
+  <div class="finish-title">Tournée terminée !</div>
+  <div class="finish-stat" id="finishStat">57 arrêts livrés</div>
+  <button class="btn-restart" onclick="location.reload()">🔄 Recommencer</button>
 </div>
 
-<!-- ══════════════════════════════════════════════
-     ÉCRAN 3 — ENREGISTREMENT EN COURS
-══════════════════════════════════════════════ -->
-<div id="screen-record" class="screen">
-  <div class="rec-header">
-    <div class="rec-badge">
-      <div class="rec-dot" id="rec-dot"></div>
-      <span id="rec-status-text">REC</span>
-    </div>
-    <div class="rec-timer" id="rec-timer">00:00</div>
-    <div class="rec-stops-count" id="rec-stops-count">0 arrêts</div>
-    <div id="rec-distance" style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;min-width:40px">0 m</div>
-    <span id="groq-indicator" style="font-size:13px;min-width:24px;text-align:center"></span>
-    <button id="rec-follow-btn" onclick="toggleFollow('rec')" title="Mode suivi carte"
-      style="background:transparent;border:none;font-size:16px;cursor:pointer;padding:0 4px;color:var(--text)">📍</button>
-  </div>
-  <div id="rec-map"></div>
-
-  <!-- Bandeau confirmation rapide — arrêts courts (4-12s) -->
-  <div id="confirm-bar">
-    <div class="confirm-text">❓ Livraison ici ?</div>
-    <button class="confirm-btn yes" onclick="confirmStop(true)">✓ OUI</button>
-    <button class="confirm-btn no"  onclick="confirmStop(false)">✕ NON</button>
-    <div class="confirm-countdown-wrap">Auto <span id="confirm-countdown">5</span>s</div>
-  </div>
-
-  <div class="rec-bottom">
-    <div class="rec-stop-info" id="rec-stop-info">
-      📍 En attente du premier arrêt...
-    </div>
-    <div class="rec-buttons">
-      <button class="btn btn-pause" id="btn-pause" onclick="togglePause()">⏸</button>
-      <button class="btn btn-note" onclick="openNoteModal()">📝</button>
-      <button class="btn btn-stop" onclick="confirmStopRecording()">⏹ TERMINER</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════════════════════════════════════
-     ÉCRAN 4 — FINALISATION
-══════════════════════════════════════════════ -->
-<div id="screen-finalize" class="screen">
-  <div style="flex:1; display:flex; align-items:center; justify-content:center; padding:24px;">
-    <div class="finalize-box">
-      <div class="finalize-icon">✅</div>
-      <div class="finalize-title">Tournée terminée !</div>
-      <div class="finalize-stats">
-        <div class="stat-item">
-          <div class="stat-val" id="fin-duration">0:00</div>
-          <div class="stat-lbl">Durée</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-val" id="fin-stops">0</div>
-          <div class="stat-lbl">Arrêts</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-val" id="fin-size">—</div>
-          <div class="stat-lbl">Audio</div>
-        </div>
-      </div>
-      <div class="progress-bar-wrap">
-        <div class="progress-bar-fill" id="fin-progress"></div>
-      </div>
-      <div class="progress-label" id="fin-progress-label">Préparation...</div>
-
-      <!-- Bouton 1 : données légères -->
-      <button class="btn-finalize" id="btn-download" onclick="downloadTournee()" disabled>
-        💾 Données seules
-      </button>
-      <div style="font-size:11px;color:var(--muted);text-align:center;margin:-10px 0 8px">
-        Quelques Ko — partageable WhatsApp / email
-      </div>
-
-      <!-- Bouton 2 : tout en un (si < 25 Mo) -->
-      <button class="btn-finalize" id="btn-download-all" onclick="downloadAll()" disabled
-        style="background:var(--card);border:1px solid var(--success);color:var(--success);margin-top:0">
-        📦 Tout en un seul fichier
-      </button>
-      <div style="font-size:11px;color:var(--muted);text-align:center;margin:-10px 0 8px" id="fin-all-size">
-        Données + audio — si &lt; 25 Mo
-      </div>
-
-      <!-- Bouton 3 : audio seul (grandes tournées) -->
-      <button class="btn-finalize" id="btn-download-audio" onclick="downloadAudio()" disabled
-        style="background:var(--card);border:1px solid var(--accent);color:var(--accent);margin-top:0">
-        🎙️ Audio seul (.webm)
-      </button>
-      <div style="font-size:11px;color:var(--muted);text-align:center;margin:-10px 0 8px" id="fin-audio-size">
-        Pour les grandes tournées — via Drive ou câble
-      </div>
-
-      <button class="btn-back" onclick="afterFinalize()">← Mes tournées</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════════════════════════════════════
-     ÉCRAN 5 — MES TOURNÉES
-══════════════════════════════════════════════ -->
-<div id="screen-manage" class="screen">
-  <div class="manage-header">
-    <button class="btn-icon" onclick="showScreen('screen-home')">←</button>
-    <h2>📋 Mes tournées</h2>
-    <button class="btn-icon" onclick="importTournee()" title="Charger un fichier">📂</button>
-    <button class="btn-icon" onclick="showScreen('screen-settings')" title="Réglages">⚙️</button>
-  </div>
-  <div class="manage-list" id="manage-list">
-    <div class="empty-state">
-      <div class="empty-icon">🗺️</div>
-      <p>Aucune tournée enregistrée.<br>Enregistre ta première tournée avec le formateur ou charge un fichier .tournee</p>
-    </div>
-  </div>
-  <input type="file" id="file-import" accept=".tournee,.json" style="display:none" onchange="loadTourneeFile(event)" />
-</div>
-
-<!-- ══════════════════════════════════════════════
-     ÉCRAN 6 — ÉDITION
-══════════════════════════════════════════════ -->
-<div id="screen-edit" class="screen">
-  <div class="edit-header">
-    <button class="btn-icon" onclick="cancelEdit()">←</button>
-    <h2 id="edit-title">Éditer la tournée</h2>
-    <button class="btn-icon" onclick="saveEditedTournee()" style="border-color:var(--success); color:var(--success)">✓</button>
-  </div>
-  <div class="edit-list" id="edit-list"></div>
-  <div class="edit-bottom">
-    <div style="font-size:12px; color:var(--muted); margin-bottom:12px; text-align:center">
-      ⬅️ Swipe gauche sur un arrêt pour le supprimer · Tape sur le nom pour renommer
-    </div>
-    <button class="btn-save-tournee" onclick="saveEditedTournee()">✅ Valider et enregistrer</button>
-  </div>
-</div>
-
-<!-- ══════════════════════════════════════════════
-     ÉCRAN 7 — NAVIGATION
-══════════════════════════════════════════════ -->
-<div id="screen-nav" class="screen">
-  <div class="nav-header">
-    <div class="nav-title-row">
-      <div class="nav-tournee-name" id="nav-name">Tournée</div>
-      <div class="nav-progress" id="nav-progress">Arrêt 0/0</div>
-      <button id="nav-follow-btn" onclick="toggleFollow('nav')" title="Mode suivi carte"
-        style="background:transparent;border:none;font-size:16px;cursor:pointer;padding:0 4px;color:var(--text)">📍</button>
-    </div>
-    <div class="nav-next-stop">
-      <div class="nav-next-icon" id="nav-next-icon">📍</div>
-      <div class="nav-next-info">
-        <div class="nav-next-name" id="nav-next-name">Calcul en cours...</div>
-        <div class="nav-next-dist" id="nav-next-dist">— m</div>
-      </div>
-    </div>
-  </div>
-  <div id="nav-proximity" class="nav-proximity"></div>
-  <div id="nav-map"></div>
-  <div class="nav-bottom">
-    <div class="nav-instruction" id="nav-instruction">🧭 Démarrage de la navigation...</div>
-    <div class="nav-controls">
-      <button class="btn-repeat" onclick="repeatInstruction()">🔁</button>
-      <button class="btn-nav-stop" onclick="stopNavigation()">⏹ Terminer</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════════════════════════════════════
-     MODALE NOTE
-══════════════════════════════════════════════ -->
-<div class="modal-overlay" id="modal-note">
-  <div class="modal-box">
-    <div class="modal-title">📝 Note pour cet arrêt</div>
-    <div class="note-tabs">
-      <button class="note-tab active" id="tab-text" onclick="switchNoteTab('text')">⌨️ Texte</button>
-      <button class="note-tab" id="tab-voice" onclick="switchNoteTab('voice')">😙️ Vocal</button>
-    </div>
-    <!-- Tab texte -->
-    <div id="note-panel-text">
-      <textarea class="modal-textarea" id="note-textarea" placeholder="Ex: Mme Dupont, boîte à gauche, 3e résidence..."></textarea>
-    </div>
-    <!-- Tab vocal -->
-    <div id="note-panel-voice" style="display:none">
-      <div class="voice-note-box">
-        <button class="btn-voice-record" id="btn-voice-rec" onclick="toggleVoiceNote()">
-          <span class="voice-icon">🎙️</span>
-          <span id="voice-rec-label">Appuie pour dicter</span>
-        </button>
-        <div class="voice-transcript" id="voice-transcript">La transcription apparaîtra ici...</div>
-        <div class="voice-hint" id="voice-hint">Parle clairement — la note sera transcrite automatiquement</div>
-      </div>
-    </div>
-    <div class="modal-btns">
-      <button class="btn-modal-cancel" onclick="closeNoteModal()">Annuler</button>
-      <button class="btn-modal-ok" onclick="saveNote()">Enregistrer</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════════════════════════════════════
-     ÉCRAN 8 — RÉGLAGES
-══════════════════════════════════════════════ -->
-<div id="screen-settings" class="screen">
-  <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px;background:radial-gradient(ellipse at 50% 0%,#0d2040 0%,var(--bg) 70%)">
-    <div class="setup-box">
-      <div class="setup-title">⚙️ Réglages</div>
-      <div class="setup-sub">Clé API Groq pour la transcription audio (gratuite sur console.groq.com)</div>
-      <div class="field-label">Clé API Groq</div>
-      <input id="settings-groq-key" class="field-input" type="text" placeholder="gsk_..." autocomplete="off" />
-      <div style="font-size:12px;color:var(--muted);margin-bottom:20px">
-        Whisper large-v3 · Français · Accent marseillais · Gratuit jusqu'à 28h/jour
-      </div>
-      <button class="btn-launch" onclick="saveSettings()">💾 Enregistrer</button>
-      <button class="btn-back" onclick="showScreen('screen-manage')">← Retour</button>
-    </div>
-  </div>
-</div>
-
-<!-- TOAST -->
-<div class="toast" id="toast"></div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="app.js"></script>
 <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').catch(() => {});
-    });
+// ===== TOURNEE DATA (embedded) =====
+let TOURNEE = null;
+
+// ===== STATE =====
+let map, routeLine, currentStopIdx = 0;
+let userMarker, userLat, userLng, watchId;
+let stopMarkers = [];
+let soundOn = true;
+let speaking = false;
+let hasSpokenApproach = false;
+let hasSpokenArrival = false;
+
+const APPROACH_DIST = 120; // meters - announce approach
+const ARRIVAL_DIST = 40;   // meters - announce arrival
+const AUTO_ADVANCE_DIST = 25; // meters - auto validate
+
+// ===== LOAD EMBEDDED DATA =====
+async function loadEmbeddedData() {
+  try {
+    const resp = await fetch('tournee_data.json');
+    TOURNEE = await resp.json();
+    document.getElementById('statStops').textContent = TOURNEE.length;
+    const totalClients = TOURNEE.reduce((s, t) => s + (t.clients?.length || 0), 0);
+    document.getElementById('statClients').textContent = totalClients;
+    const totalPapers = TOURNEE.reduce((s, t) => 
+      s + (t.clients?.reduce((cs, c) => cs + (c.titres?.length || 0), 0) || 0), 0);
+    document.getElementById('statPapers').textContent = totalPapers;
+  } catch(e) {
+    console.log('No embedded data, waiting for file upload');
   }
+}
+loadEmbeddedData();
+
+function loadFile(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      TOURNEE = JSON.parse(e.target.result);
+      document.getElementById('statStops').textContent = TOURNEE.length;
+      toast('Fichier chargé ✓');
+    } catch(err) {
+      toast('Erreur de fichier');
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ===== SCREENS =====
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ===== START =====
+function startTournee() {
+  if (!TOURNEE || TOURNEE.length === 0) {
+    toast('Aucune donnée chargée');
+    return;
+  }
+  showScreen('mapScreen');
+  initMap();
+  startGPS();
+  currentStopIdx = 0;
+  updateStopDisplay();
+  // Initial voice announcement - announce first stop details
+  setTimeout(() => speak("Tournée démarrée. " + getDepartureText(0)), 1000);
+}
+
+// ===== MAP =====
+function initMap() {
+  if (map) return;
+  
+  // Center on first stop
+  const first = TOURNEE[0];
+  map = L.map('map', {
+    center: [first.lat, first.lng],
+    zoom: 15,
+    zoomControl: false,
+    attributionControl: false
+  });
+  
+  // Dark tiles
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19
+  }).addTo(map);
+  
+  // Route line
+  const coords = TOURNEE.filter(s => s.lat && s.lng).map(s => [s.lat, s.lng]);
+  routeLine = L.polyline(coords, {
+    color: '#00e5a0', weight: 3, opacity: 0.5, dashArray: '8,12'
+  }).addTo(map);
+  
+  // Stop markers
+  TOURNEE.forEach((stop, i) => {
+    if (!stop.lat || !stop.lng) return;
+    
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="
+        width:${i === 0 ? 32 : 24}px; height:${i === 0 ? 32 : 24}px;
+        border-radius:50%; 
+        background:${i === 0 ? '#ffa502' : 'var(--accent, #00e5a0)'};
+        color:#0a0e17; font-weight:800; font-size:${i === 0 ? 14 : 11}px;
+        display:flex; align-items:center; justify-content:center;
+        border: 2px solid rgba(255,255,255,0.3);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        opacity: 0.7;
+      ">${i}</div>`,
+      iconSize: [i === 0 ? 32 : 24, i === 0 ? 32 : 24],
+      iconAnchor: [i === 0 ? 16 : 12, i === 0 ? 16 : 12]
+    });
+    
+    const marker = L.marker([stop.lat, stop.lng], { icon }).addTo(map);
+    stopMarkers.push(marker);
+  });
+  
+  // Fit bounds
+  map.fitBounds(routeLine.getBounds().pad(0.1));
+}
+
+// ===== GPS =====
+function startGPS() {
+  if (!navigator.geolocation) {
+    toast('GPS non disponible');
+    return;
+  }
+  watchId = navigator.geolocation.watchPosition(
+    onPosition,
+    (err) => console.warn('GPS error:', err.message),
+    { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
+  );
+}
+
+function onPosition(pos) {
+  userLat = pos.coords.latitude;
+  userLng = pos.coords.longitude;
+  
+  if (!userMarker) {
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="position:relative">
+        <div style="width:18px;height:18px;border-radius:50%;background:#00b8ff;border:3px solid white;box-shadow:0 0 12px rgba(0,184,255,0.6);position:relative;z-index:2"></div>
+        <div style="position:absolute;top:-3px;left:-3px;width:24px;height:24px;border-radius:50%;background:rgba(0,184,255,0.3);animation:pulse 2s infinite;z-index:1"></div>
+      </div>`,
+      iconSize: [18, 18],
+      iconAnchor: [9, 9]
+    });
+    userMarker = L.marker([userLat, userLng], { icon, zIndexOffset: 1000 }).addTo(map);
+  } else {
+    userMarker.setLatLng([userLat, userLng]);
+  }
+  
+  checkProximity();
+}
+
+function centerOnUser() {
+  if (userLat && userLng) {
+    map.setView([userLat, userLng], 17, { animate: true });
+  }
+}
+
+// ===== PROXIMITY =====
+function checkProximity() {
+  if (currentStopIdx >= TOURNEE.length) return;
+  
+  const stop = TOURNEE[currentStopIdx];
+  if (!stop.lat || !stop.lng || !userLat) return;
+  
+  const dist = getDistance(userLat, userLng, stop.lat, stop.lng);
+  
+  // Update distance display
+  document.getElementById('stopDist').textContent = 
+    dist < 1000 ? Math.round(dist) + 'm' : (dist/1000).toFixed(1) + 'km';
+  
+  // Arrival announcement (40m) - announce client details
+  if (dist < ARRIVAL_DIST && !hasSpokenArrival) {
+    hasSpokenArrival = true;
+    speak(getArrivalText(currentStopIdx));
+    // Flash the validate button
+    document.getElementById('btnValidate').style.boxShadow = '0 0 30px rgba(0,229,160,0.6)';
+  }
+}
+
+function getDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2-lat1) * Math.PI/180;
+  const dLon = (lon2-lon1) * Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// ===== VOICE =====
+function speak(text) {
+  if (!soundOn || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'fr-FR';
+  u.rate = 0.95;
+  u.pitch = 1;
+  // Try to get a French voice
+  const voices = speechSynthesis.getVoices();
+  const frVoice = voices.find(v => v.lang.startsWith('fr'));
+  if (frVoice) u.voice = frVoice;
+  speechSynthesis.speak(u);
+}
+
+function toggleSound() {
+  soundOn = !soundOn;
+  document.getElementById('btnSound').textContent = soundOn ? '🔊' : '🔇';
+  if (!soundOn) speechSynthesis.cancel();
+}
+
+// Preload voices
+if (window.speechSynthesis) {
+  speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
+}
+
+function getDepartureText(nextIdx) {
+  // Called right after validating an arrêt - announces direction + prep for the NEXT stop
+  const prevStop = nextIdx > 0 ? TOURNEE[nextIdx - 1] : null;
+  const nextStop = TOURNEE[nextIdx];
+  if (!nextStop) return '';
+  
+  const totalPapers = nextStop.clients?.reduce((s, c) => {
+    if (c.note && c.note.includes('SUSPENDU')) return s;
+    return s + (c.titres?.length || 0);
+  }, 0) || 0;
+  const clientCount = nextStop.clients?.filter(c => !(c.note && c.note.includes('SUSPENDU'))).length || 0;
+  
+  let text = '';
+  
+  // Direction from the stop we just left
+  if (prevStop?.direction_next) {
+    text += prevStop.direction_next + '. ';
+  }
+  
+  // Address of next stop
+  const addr = nextStop.adresse?.replace(/,?\s*130\d{2}.*$/, '').replace(/\(.*\)/, '').trim() || '';
+  text += `Prochain arrêt : ${addr}. `;
+  
+  // Prep info
+  if (totalPapers > 0) {
+    text += `Préparez ${totalPapers} journal${totalPapers > 1 ? 'x' : ''}`;
+    if (clientCount > 1) text += ` pour ${clientCount} clients`;
+    text += '. ';
+  }
+  
+  return text;
+}
+
+function getArrivalText(idx) {
+  const stop = TOURNEE[idx];
+  let text = 'Arrivée. ';
+  
+  if (!stop.clients || stop.clients.length === 0) return text;
+  
+  stop.clients.forEach(c => {
+    const isSuspended = (c.note && c.note.includes('SUSPENDU'));
+    if (isSuspended) {
+      text += `${c.nom} : suspendu. `;
+      return;
+    }
+    text += `${c.nom}`;
+    if (c.n) text += `, boîte ${c.n}`;
+    if (c.titres?.length) text += ` : ${c.titres.join(', ')}`;
+    text += '. ';
+  });
+  
+  return text;
+}
+
+// ===== STOP DISPLAY =====
+function updateStopDisplay() {
+  if (currentStopIdx >= TOURNEE.length) {
+    finishTournee();
+    return;
+  }
+  
+  const stop = TOURNEE[currentStopIdx];
+  
+  // Progress
+  document.getElementById('progressText').textContent = `${currentStopIdx} / ${TOURNEE.length}`;
+  document.getElementById('progressFill').style.width = `${(currentStopIdx / TOURNEE.length) * 100}%`;
+  
+  // Direction banner
+  const prevStop = currentStopIdx > 0 ? TOURNEE[currentStopIdx - 1] : null;
+  const dirText = prevStop?.direction_next || stop.instruction || 'En route...';
+  document.getElementById('dirText').textContent = dirText;
+  
+  // Stop info
+  document.getElementById('stopNum').textContent = stop.stop;
+  document.getElementById('stopAddr').textContent = stop.adresse || 'Adresse inconnue';
+  document.getElementById('stopDist').textContent = '--';
+  
+  // Prep info
+  const totalPapers = stop.clients?.reduce((s, c) => {
+    if (c.note && c.note.includes('SUSPENDU')) return s;
+    return s + (c.titres?.length || 0);
+  }, 0) || 0;
+  const prepEl = document.getElementById('prepInfo');
+  const prepText = document.getElementById('prepText');
+  if (totalPapers > 0) {
+    prepEl.style.display = 'flex';
+    prepText.textContent = `Préparez ${totalPapers} journal${totalPapers > 1 ? 'x' : ''} pour cet arrêt`;
+  } else {
+    prepEl.style.display = 'none';
+  }
+  
+  // Clients
+  const clientsEl = document.getElementById('stopClients');
+  clientsEl.innerHTML = '';
+  
+  (stop.clients || []).forEach(c => {
+    const isSuspended = c.note && c.note.includes('SUSPENDU');
+    const row = document.createElement('div');
+    row.className = 'client-row' + (isSuspended ? ' client-suspended' : '');
+    
+    let papersHTML = '';
+    (c.titres || []).forEach(t => {
+      const cls = getPaperClass(t);
+      papersHTML += `<span class="paper-tag ${cls}">${t}</span>`;
+    });
+    
+    row.innerHTML = `
+      <div class="client-name">${c.nom}</div>
+      ${c.n ? `<div class="client-box">📬 ${c.n}</div>` : ''}
+      <div class="client-papers">${papersHTML}</div>
+    `;
+    clientsEl.appendChild(row);
+    
+    // Note line
+    if (c.note) {
+      const noteEl = document.createElement('div');
+      noteEl.className = 'client-note';
+      noteEl.textContent = isSuspended ? '⚠️ SUSPENDU' : '💡 ' + c.note;
+      clientsEl.appendChild(noteEl);
+    }
+  });
+  
+  // Stop instruction/note
+  if (stop.note) {
+    const noteEl = document.createElement('div');
+    noteEl.className = 'client-note';
+    noteEl.style.padding = '8px 0';
+    noteEl.textContent = '📝 ' + stop.note;
+    clientsEl.appendChild(noteEl);
+  }
+  
+  // Highlight current marker
+  highlightCurrentStop();
+  
+  // Reset proximity flags
+  hasSpokenApproach = false;
+  hasSpokenArrival = false;
+  document.getElementById('btnValidate').style.boxShadow = '';
+  
+  // Pan map to next stop
+  if (stop.lat && stop.lng) {
+    map.setView([stop.lat, stop.lng], Math.max(map.getZoom(), 16), { animate: true });
+  }
+}
+
+function getPaperClass(title) {
+  const t = title.toLowerCase();
+  if (t.includes('provence')) return 'paper-provence';
+  if (t.includes('monde')) return 'paper-monde';
+  if (t.includes('marseillaise')) return 'paper-marseillaise';
+  if (t.includes('libé')) return 'paper-liberation';
+  if (t.includes('figaro')) return 'paper-figaro';
+  if (t.includes('télé') || t.includes('tele')) return 'paper-tele7';
+  return 'paper-other';
+}
+
+function highlightCurrentStop() {
+  // Dim all markers, highlight current
+  stopMarkers.forEach((m, i) => {
+    const el = m.getElement();
+    if (!el) return;
+    const inner = el.querySelector('div');
+    if (!inner) return;
+    if (i === currentStopIdx) {
+      inner.style.opacity = '1';
+      inner.style.transform = 'scale(1.3)';
+      inner.style.background = '#ffa502';
+      inner.style.boxShadow = '0 0 16px rgba(255,165,2,0.6)';
+    } else if (i < currentStopIdx) {
+      inner.style.opacity = '0.3';
+      inner.style.transform = 'scale(0.8)';
+      inner.style.background = '#4a5568';
+      inner.style.boxShadow = 'none';
+    } else {
+      inner.style.opacity = '0.7';
+      inner.style.transform = 'scale(1)';
+      inner.style.background = '#00e5a0';
+      inner.style.boxShadow = 'none';
+    }
+  });
+}
+
+// ===== ACTIONS =====
+function validateStop() {
+  currentStopIdx++;
+  if (currentStopIdx < TOURNEE.length) {
+    updateStopDisplay();
+    // Announce direction + prep on departure (right after validating previous stop)
+    setTimeout(() => speak(getDepartureText(currentStopIdx)), 500);
+    toast(`Arrêt ${currentStopIdx - 1} ✓`);
+  } else {
+    finishTournee();
+  }
+}
+
+function skipStop() {
+  currentStopIdx++;
+  if (currentStopIdx < TOURNEE.length) {
+    updateStopDisplay();
+    setTimeout(() => speak(getDepartureText(currentStopIdx)), 500);
+    toast('Arrêt sauté ⏭️');
+  } else {
+    finishTournee();
+  }
+}
+
+function finishTournee() {
+  showScreen('finishScreen');
+  document.getElementById('finishStat').textContent = `${TOURNEE.length} arrêts terminés`;
+  speak('Tournée terminée. Bon travail !');
+  if (watchId) navigator.geolocation.clearWatch(watchId);
+}
+
+// ===== TOAST =====
+function toast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2000);
+}
+
+// ===== KEEP SCREEN AWAKE =====
+let wakeLock = null;
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+    }
+  } catch(e) { /* ignore */ }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') requestWakeLock();
+});
+
+// ===== SERVICE WORKER =====
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
 </script>
 </body>
 </html>
