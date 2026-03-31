@@ -1,24 +1,13 @@
 {
-  "name": "Tournée Formation",
+  "name": "Tournée Fred 14e",
   "short_name": "Tournée",
-  "description": "GPS + Audio pour apprendre une tournée de livraison",
-  "start_url": "./index.html",
+  "start_url": ".",
   "display": "standalone",
+  "background_color": "#0a0e17",
+  "theme_color": "#0a0e17",
   "orientation": "portrait",
-  "background_color": "#0a0f1e",
-  "theme_color": "#0a0f1e",
   "icons": [
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
   ]
 }
