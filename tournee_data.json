@@ -1120,32 +1120,13 @@
         "note": "SUSPENDU depuis 30/03/2026"
       }
     ],
-    "direction_next": "Vers Impasse des Petits Champs",
+    "direction_next": "Vers Impasse des Étoiles",
     "note": "Vérifier si client toujours suspendu",
     "lat": 43.3470358,
     "lng": 5.3973529
   },
   {
     "stop": 49,
-    "heure": "06:49:23",
-    "type": "Livraison",
-    "adresse": "38 Impasse des Petits Champs, 13014",
-    "clients": [
-      {
-        "nom": "GRIOT Roger Claire",
-        "n": "38",
-        "titres": [
-          "Provence"
-        ],
-        "freq": "7/7"
-      }
-    ],
-    "direction_next": "Vers Impasse des Étoiles",
-    "lat": 43.3463848,
-    "lng": 5.3998728
-  },
-  {
-    "stop": 50,
     "heure": "06:51:50",
     "type": "Livraison",
     "adresse": "Impasse des Étoiles, 13014",
@@ -1167,88 +1148,31 @@
         "freq": "7/7"
       }
     ],
-    "direction_next": "Demi-tour (impasse), puis vers Avenue Raimu",
+    "direction_next": "Vers Impasse des Petits Champs",
     "lat": 43.3450549,
     "lng": 5.3960961
   },
   {
+    "stop": 50,
+    "heure": "06:49:23",
+    "type": "Livraison",
+    "adresse": "38 Impasse des Petits Champs, 13014",
+    "clients": [
+      {
+        "nom": "GRIOT Roger Claire",
+        "n": "38",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Prendre Avenue du Merlan",
+    "lat": 43.3463848,
+    "lng": 5.3998728
+  },
+  {
     "stop": 51,
-    "heure": "07:07:22",
-    "type": "Livraison",
-    "adresse": "Avenue Raimu, 13014",
-    "clients": [
-      {
-        "nom": "COLLÈGE MANET Edouard",
-        "n": "",
-        "titres": [
-          "Provence"
-        ],
-        "freq": "5/7"
-      }
-    ],
-    "direction_next": "Vers Avenue Alexandre Ansaldi",
-    "lat": 43.3284762,
-    "lng": 5.3980178
-  },
-  {
-    "stop": 52,
-    "heure": "07:08:50",
-    "type": "Livraison",
-    "adresse": "81 Avenue Alexandre Ansaldi, 13014",
-    "clients": [
-      {
-        "nom": "DOMENECH Jean",
-        "n": "81",
-        "titres": [
-          "Provence"
-        ],
-        "freq": "7/7"
-      }
-    ],
-    "direction_next": "Vers Traverse du Château Vento",
-    "lat": 43.3327925,
-    "lng": 5.4037719
-  },
-  {
-    "stop": 53,
-    "heure": "07:11:06",
-    "type": "Livraison",
-    "adresse": "42 Traverse du Château Vento, 13014",
-    "clients": [
-      {
-        "nom": "BOUALIA Mamma",
-        "n": "42",
-        "titres": [
-          "Provence"
-        ],
-        "freq": "7/7"
-      }
-    ],
-    "direction_next": "Continuer Traverse Cade",
-    "lat": 43.3347,
-    "lng": 5.4005
-  },
-  {
-    "stop": 54,
-    "heure": "07:12:27",
-    "type": "Livraison",
-    "adresse": "49 Traverse Cade, 13014",
-    "clients": [
-      {
-        "nom": "ARRIGHI Georges",
-        "n": "49",
-        "titres": [
-          "La Marseillaise"
-        ],
-        "freq": "7/7"
-      }
-    ],
-    "direction_next": "Vers Avenue du Merlan",
-    "lat": 43.3367188,
-    "lng": 5.3971568
-  },
-  {
-    "stop": 55,
     "heure": "07:14:21",
     "type": "Livraison",
     "adresse": "4 Avenue du Merlan, 13014",
@@ -1267,7 +1191,7 @@
     "lng": 5.4083373
   },
   {
-    "stop": 56,
+    "stop": 52,
     "heure": "07:15:37",
     "type": "Livraison",
     "adresse": "9 Boulevard de Corfou, 13014",
@@ -1281,8 +1205,84 @@
         "freq": "7/7"
       }
     ],
-    "direction_next": "FIN DE TOURNÉE",
+    "direction_next": "Vers Traverse Cade",
     "lat": 43.3386372,
     "lng": 5.3963005
+  },
+  {
+    "stop": 53,
+    "heure": "07:12:27",
+    "type": "Livraison",
+    "adresse": "49 Traverse Cade, 13014",
+    "clients": [
+      {
+        "nom": "ARRIGHI Georges",
+        "n": "49",
+        "titres": [
+          "La Marseillaise"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Descendre vers Avenue Raimu — Collège",
+    "lat": 43.3367188,
+    "lng": 5.3971568
+  },
+  {
+    "stop": 54,
+    "heure": "07:07:22",
+    "type": "Livraison",
+    "adresse": "Avenue Raimu, 13014",
+    "clients": [
+      {
+        "nom": "COLLÈGE MANET Edouard",
+        "n": "",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "5/7"
+      }
+    ],
+    "direction_next": "Vers Traverse du Château Vento",
+    "lat": 43.3284762,
+    "lng": 5.3980178
+  },
+  {
+    "stop": 55,
+    "heure": "07:11:06",
+    "type": "Livraison",
+    "adresse": "42 Traverse du Château Vento, 13014",
+    "clients": [
+      {
+        "nom": "BOUALIA Mamma",
+        "n": "42",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "Terminer par 81 Avenue Alexandre Ansaldi",
+    "lat": 43.3347,
+    "lng": 5.4005
+  },
+  {
+    "stop": 56,
+    "heure": "07:08:50",
+    "type": "Livraison",
+    "adresse": "81 Avenue Alexandre Ansaldi, 13014",
+    "clients": [
+      {
+        "nom": "DOMENECH Jean",
+        "n": "81",
+        "titres": [
+          "Provence"
+        ],
+        "freq": "7/7"
+      }
+    ],
+    "direction_next": "FIN DE TOURNÉE",
+    "lat": 43.3327925,
+    "lng": 5.4037719
   }
 ]
