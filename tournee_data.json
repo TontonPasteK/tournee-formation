@@ -102,8 +102,8 @@
       }
     ],
     "direction_next": "Continuer dans la résidence",
-    "lat": 43.3478517,
-    "lng": 5.3621704
+    "lat": 43.3473,
+    "lng": 5.367
   },
   {
     "stop": 3,
@@ -121,8 +121,8 @@
       }
     ],
     "direction_next": "Entrer dans Résidence des Dauphins",
-    "lat": 43.3485716,
-    "lng": 5.3711997
+    "lat": 43.3468,
+    "lng": 5.3672
   },
   {
     "stop": 4,
@@ -157,8 +157,8 @@
       }
     ],
     "direction_next": "Continuer dans la résidence",
-    "lat": 43.348,
-    "lng": 5.3635
+    "lat": 43.347,
+    "lng": 5.3665
   },
   {
     "stop": 5,
@@ -176,8 +176,8 @@
       }
     ],
     "direction_next": "Sortir résidence à gauche vers Station",
-    "lat": 43.3479,
-    "lng": 5.364
+    "lat": 43.3471,
+    "lng": 5.3668
   },
   {
     "stop": 6,
@@ -195,8 +195,8 @@
       }
     ],
     "direction_next": "Prendre vers Résidence Les Lions",
-    "lat": 43.3482,
-    "lng": 5.37
+    "lat": 43.3475,
+    "lng": 5.372
   },
   {
     "stop": 7,
@@ -214,8 +214,8 @@
       }
     ],
     "direction_next": "Continuer Boulevard Roland Dorgelès",
-    "lat": 43.3483,
-    "lng": 5.3765
+    "lat": 43.34767,
+    "lng": 5.37749
   },
   {
     "stop": 8,
@@ -276,8 +276,8 @@
       }
     ],
     "direction_next": "Sortir résidence, prendre à gauche",
-    "lat": 43.349,
-    "lng": 5.3785
+    "lat": 43.3495,
+    "lng": 5.379
   },
   {
     "stop": 10,
@@ -514,7 +514,7 @@
     ],
     "direction_next": "Prendre Boulevard Central",
     "lat": 43.3435,
-    "lng": 5.379
+    "lng": 5.3795
   },
   {
     "stop": 21,
@@ -541,7 +541,7 @@
     ],
     "direction_next": "Continuer Boulevard Central",
     "lat": 43.3438,
-    "lng": 5.3795
+    "lng": 5.38
   },
   {
     "stop": 22,
@@ -567,8 +567,8 @@
       }
     ],
     "direction_next": "Tourner Place de la Rotonde",
-    "lat": 43.3438,
-    "lng": 5.3798
+    "lat": 43.344,
+    "lng": 5.3803
   },
   {
     "stop": 23,
@@ -744,8 +744,8 @@
       }
     ],
     "direction_next": "Descendre Chemin Ste-Marthe",
-    "lat": 43.3229739,
-    "lng": 5.3894055
+    "lat": 43.329,
+    "lng": 5.38824
   },
   {
     "stop": 31,
@@ -771,8 +771,8 @@
       }
     ],
     "direction_next": "Prendre Boulevard Mouton",
-    "lat": 43.3245,
-    "lng": 5.39
+    "lat": 43.3275,
+    "lng": 5.3885
   },
   {
     "stop": 32,
@@ -1006,8 +1006,8 @@
       }
     ],
     "direction_next": "Descendre Chemin des Bessons",
-    "lat": 43.3492502,
-    "lng": 5.3913756
+    "lat": 43.347,
+    "lng": 5.392
   },
   {
     "stop": 43,
@@ -1025,8 +1025,8 @@
       }
     ],
     "direction_next": "Vers Chemin des Carrières",
-    "lat": 43.34512,
-    "lng": 5.3911062
+    "lat": 43.3395,
+    "lng": 5.392
   },
   {
     "stop": 44,
@@ -1187,8 +1187,8 @@
       }
     ],
     "direction_next": "Vers Boulevard de Corfou",
-    "lat": 43.3445369,
-    "lng": 5.4083373
+    "lat": 43.33654,
+    "lng": 5.40705
   },
   {
     "stop": 52,
@@ -1244,8 +1244,8 @@
       }
     ],
     "direction_next": "Vers Traverse du Château Vento",
-    "lat": 43.3284762,
-    "lng": 5.3980178
+    "lat": 43.33364,
+    "lng": 5.39873
   },
   {
     "stop": 55,
@@ -1263,8 +1263,8 @@
       }
     ],
     "direction_next": "Terminer par 81 Avenue Alexandre Ansaldi",
-    "lat": 43.3347,
-    "lng": 5.4005
+    "lat": 43.33306,
+    "lng": 5.40388
   },
   {
     "stop": 56,
