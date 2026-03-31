@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tournee-v3';
+const CACHE_NAME = 'tournee-v4';
 const ASSETS = [
   './',
   './index.html',
@@ -25,7 +25,13 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
+  // Network first, fallback to cache
   e.respondWith(
-    fetch(e.request).catch(() => caches.match(e.request))
+    fetch(e.request).then(resp => {
+      // Update cache with fresh response
+      const clone = resp.clone();
+      caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+      return resp;
+    }).catch(() => caches.match(e.request))
   );
 });
