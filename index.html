@@ -7,6 +7,18 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a0e17">
 <title>Tournée Formation</title>
+<script>
+// Force cache cleanup on version change
+(function(){
+  var V='v4b';
+  if(localStorage.getItem('app_version')!==V){
+    if('caches' in window)caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
+    if(navigator.serviceWorker)navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(reg){reg.unregister()})});
+    localStorage.setItem('app_version',V);
+    setTimeout(function(){location.reload(true)},500);
+  }
+})();
+</script>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
